@@ -171,7 +171,6 @@ export function UploadTemplateStep({
             maxSize={MAX_FILE_SIZE}
             label="Drag and drop your .pptx file here, or click to select"
             fileTypeDescription="PPTX only"
-            successMessage="Nice! Template loaded."
           />
           {error && (
             <p role="alert" className="mt-2 text-sm text-destructive flex items-center gap-1.5 animate-in fade-in">
