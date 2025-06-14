@@ -10,7 +10,6 @@ export interface Draft {
   id: string;
   name: string;
   timestamp: number;
-  currentStep: number;
   templateFile: DraftFile | null;
   csvFile: DraftFile | null;
   extractedVariables: string[] | null;

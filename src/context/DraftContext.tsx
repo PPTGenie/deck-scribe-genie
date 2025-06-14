@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Draft, saveDraft, getDraft, fileToBase64, base64ToFile, DraftFile, CURRENT_DRAFT_ID_KEY } from '@/lib/drafts';
 import { toast } from 'sonner';
@@ -8,6 +7,7 @@ interface DraftContextState {
   draft: Draft | null;
   isLoading: boolean;
   isSaving: boolean;
+  currentStep: number;
   templateFile: File | null;
   csvFile: File | null;
   extractedVariables: string[] | null;
@@ -32,6 +32,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true); // Prevent auto-save on initial load
+  const [currentStep, setCurrentStep] = useState(0);
 
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -58,19 +59,29 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
         if (existingDraft) {
           if (!active) return;
           setDraft(existingDraft);
+
+          const loadedTemplateFile = existingDraft.templateFile ? base64ToFile(existingDraft.templateFile.content, existingDraft.templateFile.name) : null;
+          const loadedCsvFile = existingDraft.csvFile ? base64ToFile(existingDraft.csvFile.content, existingDraft.csvFile.name) : null;
+          
+          setTemplateFile(loadedTemplateFile);
+          setCsvFile(loadedCsvFile);
           setExtractedVariables(existingDraft.extractedVariables);
           setCsvPreview(existingDraft.csvPreview);
 
-          if (existingDraft.templateFile) {
-            setTemplateFile(base64ToFile(existingDraft.templateFile.content, existingDraft.templateFile.name));
+          // Compute initial step after loading
+          const csvHeaders = existingDraft.csvPreview?.headers ?? [];
+          const initialMissing = existingDraft.extractedVariables?.filter(v => !csvHeaders.includes(v)) ?? [];
+
+          if (loadedTemplateFile && existingDraft.extractedVariables) {
+            if (loadedCsvFile && existingDraft.csvPreview && initialMissing.length === 0) {
+              setCurrentStep(2);
+            } else {
+              setCurrentStep(1);
+            }
           } else {
-            setTemplateFile(null);
+            setCurrentStep(0);
           }
-          if (existingDraft.csvFile) {
-            setCsvFile(base64ToFile(existingDraft.csvFile.content, existingDraft.csvFile.name));
-          } else {
-            setCsvFile(null);
-          }
+
           sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, existingDraft.id);
           if (draftIdToLoad) {
             toast.success("Draft Loaded", { description: `Restored "${existingDraft.name}".` });
@@ -95,7 +106,6 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
         id: newDraftId,
         name: 'Untitled Draft',
         timestamp: Date.now(),
-        currentStep: 0,
         templateFile: null,
         csvFile: null,
         extractedVariables: null,
@@ -105,6 +115,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
       setCsvFile(null);
       setExtractedVariables(null);
       setCsvPreview(null);
+      setCurrentStep(0);
       sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, newDraftId);
     };
 
@@ -113,8 +124,6 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     return () => { active = false; };
   }, [draftIdToLoad]);
   
-  const currentStep = draft?.currentStep;
-
   const saveCurrentDraft = async (isAutoSave = false) => {
     if (!draft) return;
 
@@ -170,7 +179,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     return () => {
       clearTimeout(handler);
     };
-  }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep]);
+  }, [templateFile, csvFile, extractedVariables, csvPreview]);
   
   useEffect(() => {
     if (!templateFile) {
@@ -190,8 +199,23 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     }
   }, [extractedVariables, csvPreview]);
 
+  // Step validation logic
+  useEffect(() => {
+    if (isLoading || isRestoring) return;
+    
+    // Can't be on step 1 or 2 without a template
+    if (currentStep > 0 && !templateFile) {
+        setCurrentStep(0);
+        return;
+    }
+    // Can't be on step 2 without a valid CSV
+    if (currentStep > 1 && (!csvFile || !csvPreview || missingVariables.length > 0)) {
+        setCurrentStep(1);
+    }
+  }, [currentStep, templateFile, csvFile, csvPreview, missingVariables, isLoading, isRestoring]);
+
   const updateCurrentStep = (step: number) => {
-    setDraft(d => d ? { ...d, currentStep: step } : null);
+    setCurrentStep(step);
     setError(null); // Also reset error on step change
   };
   
@@ -199,6 +223,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     draft,
     isLoading,
     isSaving,
+    currentStep,
     templateFile,
     csvFile,
     extractedVariables,

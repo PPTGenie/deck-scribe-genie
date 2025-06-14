@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
@@ -16,8 +17,8 @@ const steps = [
 
 export function NewBatchFlow() {
   const {
-    draft,
     isLoading,
+    currentStep,
     templateFile,
     setTemplateFile,
     csvFile,
@@ -34,7 +35,7 @@ export function NewBatchFlow() {
     missingVariables,
   } = useDraft();
   
-  if (isLoading || !draft) {
+  if (isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-12 w-full" />
@@ -46,8 +47,6 @@ export function NewBatchFlow() {
       </div>
     );
   }
-
-  const currentStep = draft.currentStep;
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
