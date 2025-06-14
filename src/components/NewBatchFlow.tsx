@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from './ui/button';
+import { cn } from '@/lib/utils';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -15,6 +15,7 @@ export function NewBatchFlow() {
   const [currentStep, setCurrentStep] = useState(0);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null); // This will be used in the next step
+  const [error, setError] = useState<string | null>(null);
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -25,13 +26,14 @@ export function NewBatchFlow() {
   const goToPrevStep = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
+      setError(null);
     }
   };
 
   return (
     <div className="flex flex-col gap-8 max-w-3xl mx-auto">
       <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
-      <Card>
+      <Card className={cn("transition-all", error && "border-destructive ring-1 ring-destructive/50")}>
         <CardHeader>
           <CardTitle>{steps[currentStep].name}</CardTitle>
           <CardDescription>{steps[currentStep].description}</CardDescription>
@@ -42,6 +44,8 @@ export function NewBatchFlow() {
               templateFile={templateFile}
               setTemplateFile={setTemplateFile}
               goToNextStep={goToNextStep}
+              error={error}
+              setError={setError}
             />
           )}
           {currentStep === 1 && (

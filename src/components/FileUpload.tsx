@@ -1,8 +1,8 @@
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useDropzone, Accept } from 'react-dropzone';
 import { cn } from '@/lib/utils';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, Check } from 'lucide-react';
 
 interface FileUploadProps {
     onFileSelect: (files: File[]) => void;
@@ -12,8 +12,21 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadProps) {
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    onFileSelect(acceptedFiles);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+    if (fileRejections.length > 0) {
+      onFileSelect([]);
+      return;
+    }
+    
+    if (acceptedFiles.length > 0) {
+      setIsSuccess(true);
+      setTimeout(() => {
+        onFileSelect(acceptedFiles);
+        // Component will unmount, no need to reset state
+      }, 1000);
+    }
   }, [onFileSelect]);
 
   const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
@@ -27,24 +40,34 @@ export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadP
     <div
       {...getRootProps()}
       className={cn(
-        'flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-background hover:bg-accent',
-        isDragActive && !isDragReject && 'border-primary',
-        isDragReject && 'border-destructive'
+        'flex flex-col items-center justify-center w-full h-36 md:h-48 border-2 border-dashed rounded-lg cursor-pointer bg-background hover:bg-accent transition-all duration-200 ease-in-out',
+        isDragActive && !isDragReject && 'border-primary scale-105 bg-accent',
+        isDragReject && 'border-destructive bg-destructive/10',
+        isSuccess && 'border-green-500 bg-green-500/10'
       )}
     >
       <input {...getInputProps()} />
-      <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
-        <UploadCloud className="w-10 h-10 mb-3 text-muted-foreground" />
-        <p className="mb-2 text-sm text-muted-foreground">
-          {isDragReject ? (
-            <span className="font-semibold text-destructive">Invalid file</span>
-          ) : (
-            <span className="font-semibold">{label}</span>
-          )}
-        </p>
-        <p className="text-xs text-muted-foreground">
-            Max file size: {maxSize / 1024 / 1024}MB.
-        </p>
+      <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center animate-in fade-in">
+        {isSuccess ? (
+          <div className="animate-in zoom-in-50">
+            <Check className="w-10 h-10 mb-3 text-green-500" />
+            <p className="font-semibold text-green-500">Nice! Template loaded.</p>
+          </div>
+        ) : (
+          <>
+            <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragActive && !isDragReject && "animate-pulse")} />
+            <p className="mb-2 text-sm text-muted-foreground">
+              {isDragReject ? (
+                <span className="font-semibold text-destructive">Invalid file type or size</span>
+              ) : (
+                <span className="font-semibold">{label}</span>
+              )}
+            </p>
+            <p className="text-xs text-muted-foreground">
+                PPTX only, max {maxSize / 1024 / 1024}MB.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

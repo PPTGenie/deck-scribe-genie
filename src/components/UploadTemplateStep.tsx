@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { File, X, Info } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from "@/hooks/use-toast";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_FILE_TYPES = {
@@ -14,26 +15,36 @@ interface UploadTemplateStepProps {
   templateFile: File | null;
   setTemplateFile: (file: File | null) => void;
   goToNextStep: () => void;
+  error: string | null;
+  setError: (error: string | null) => void;
 }
 
-export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep }: UploadTemplateStepProps) {
-  const [error, setError] = React.useState<string | null>(null);
+export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep, error, setError }: UploadTemplateStepProps) {
+  const { toast } = useToast();
 
   const handleFileChange = (files: File[]) => {
     setError(null);
     const file = files[0];
-    if (!file) return;
-
-    if (file.size > MAX_FILE_SIZE) {
-      setError('File size cannot exceed 50MB.');
+    if (!file) {
+      // This case can be triggered from FileUpload component on rejection
+      setError("Invalid file. We only accept .pptx files under 50MB.");
       return;
     }
-    if (!ACCEPTED_FILE_TYPES[file.type]) {
-      setError('Invalid file type. Please upload a .pptx file.');
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size cannot exceed 50MB. Please select a smaller file.');
+      return;
+    }
+    if (!Object.keys(ACCEPTED_FILE_TYPES).includes(file.type)) {
+      setError('Invalid file type. We only accept .pptx files.');
       return;
     }
 
     setTemplateFile(file);
+    toast({
+      title: "✅ Template Uploaded",
+      description: `Your file "${file.name}" is ready.`,
+    });
   };
 
   const removeFile = () => {
@@ -43,26 +54,18 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
 
   return (
     <div className="space-y-6">
-        <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-                Select your .pptx template with <code>{'{{placeholders}}'}</code>.
-            </p>
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <button className="text-muted-foreground hover:text-foreground"><Info className="h-4 w-4" /></button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        <p className="max-w-xs p-2">
-                            Your PowerPoint template should contain placeholders like <code>{'{{name}}'}</code> or <code>{'{{title}}'}</code>. These will be replaced with data from your CSV file. The CSV file must have headers that match the placeholder names.
-                        </p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        </div>
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>How placeholders work</AlertTitle>
+        <AlertDescription>
+          Your template must use placeholders like <code>{'{{name}}'}</code>. We'll replace these with data from your CSV.
+          <br/>
+          For example: <code>{'{{company_name}}'}</code> → "Acme Inc."
+        </AlertDescription>
+      </Alert>
 
       {templateFile ? (
-        <div className="w-full">
+        <div className="w-full animate-in fade-in duration-300">
             <Alert>
                 <File className="h-4 w-4" />
                 <AlertTitle>File Selected</AlertTitle>
@@ -75,18 +78,20 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
             </Alert>
         </div>
       ) : (
-        <FileUpload
+        <div>
+          <FileUpload
             onFileSelect={handleFileChange}
             accept={ACCEPTED_FILE_TYPES}
             maxSize={MAX_FILE_SIZE}
             label="Drag and drop your .pptx file here, or click to select"
-        />
-      )}
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+          />
+          {error && (
+            <p role="alert" className="mt-2 text-sm text-destructive flex items-center gap-1.5 animate-in fade-in">
+              <X className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </p>
+          )}
+        </div>
       )}
 
       <div className="flex justify-end">
