@@ -50,7 +50,7 @@ export function FileUpload({ onFileSelect, accept, maxSize, label, fileTypeDescr
       <input {...getInputProps()} />
       <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center animate-in fade-in">
         {isSuccess ? (
-          <div className="animate-in zoom-in-50">
+          <div className="animate-in zoom-in-50 flex flex-col items-center">
             <Check className="w-10 h-10 mb-3 text-green-500" />
             <p className="font-semibold text-green-500">Nice! Template loaded.</p>
           </div>
