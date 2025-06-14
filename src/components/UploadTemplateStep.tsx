@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { X, Info, ChevronsUpDown, Loader2, CheckCircle2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from '@/lib/utils';
+import { extractTemplateVariables } from '@/lib/pptx';
 import { TemplateVariablesDisplay } from './TemplateVariablesDisplay';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -14,18 +15,24 @@ const ACCEPTED_FILE_TYPES = {
 
 interface UploadTemplateStepProps {
   templateFile: File | null;
+  setTemplateFile: (file: File | null) => void;
   error: string | null;
+  setError: (error: string | null) => void;
   extractedVariables: string[] | null;
+  setExtractedVariables: (variables: string[] | null) => void;
   isExtracting: boolean;
-  onFileChange: (files: File[]) => void;
+  setIsExtracting: (isExtracting: boolean) => void;
 }
 
 export function UploadTemplateStep({
   templateFile,
+  setTemplateFile,
   error,
+  setError,
   extractedVariables,
+  setExtractedVariables,
   isExtracting,
-  onFileChange
+  setIsExtracting
 }: UploadTemplateStepProps) {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isHelperOpen, setIsHelperOpen] = React.useState(true);
@@ -45,21 +52,42 @@ export function UploadTemplateStep({
     return () => mediaQuery.removeEventListener('change', handleResize);
   }, []);
 
-  const handleFileDrop = (files: File[]) => {
+  const handleFileChange = async (files: File[]) => {
+    setError(null);
+    setTemplateFile(null);
+
     const file = files[0];
     if (!file) {
-      onFileChange([]); // Signal error case
+      setError("Invalid file. We only accept .pptx files under 50MB.");
       return;
     }
-    if (file.size > MAX_FILE_SIZE || !file.name.toLowerCase().endsWith('.pptx')) {
-      onFileChange([]); // Signal error case
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size cannot exceed 50MB. Please select a smaller file.');
       return;
     }
-    onFileChange(files);
-  }
+    if (!file.name.toLowerCase().endsWith('.pptx')) {
+      setError('Invalid file type. We only accept .pptx files.');
+      return;
+    }
+
+    setTemplateFile(file);
+    setIsExtracting(true);
+
+    try {
+      const variables = await extractTemplateVariables(file);
+      setExtractedVariables(variables);
+    } catch (e: any) {
+      setError(e.message || "An unknown error occurred during variable extraction.");
+    } finally {
+      setIsExtracting(false);
+    }
+  };
 
   const removeFile = () => {
-    onFileChange([]);
+    setTemplateFile(null);
+    setError(null);
+    setExtractedVariables(null);
   };
 
   const PlaceholderInfo = () => (
@@ -131,7 +159,7 @@ export function UploadTemplateStep({
       ) : (
         <div>
           <FileUpload
-            onFileSelect={handleFileDrop}
+            onFileSelect={handleFileChange}
             accept={ACCEPTED_FILE_TYPES}
             maxSize={MAX_FILE_SIZE}
             label="Drag and drop your .pptx file here, or click to select"

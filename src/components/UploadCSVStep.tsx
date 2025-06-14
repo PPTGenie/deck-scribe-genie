@@ -1,6 +1,7 @@
-
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
+import { Button } from '@/components/ui/button';
+import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
 
@@ -11,37 +12,91 @@ const ACCEPTED_FILE_TYPES = {
 
 interface UploadCSVStepProps {
   csvFile: File | null;
+  setCsvFile: (file: File | null) => void;
   error: string | null;
+  setError: (error: string | null) => void;
   extractedVariables: string[] | null;
   csvPreview: { headers: string[]; data: Record<string, string>[] } | null;
+  setCsvPreview: (preview: { headers: string[]; data: Record<string, string>[] } | null) => void;
   missingVariables: string[];
-  onFileChange: (files: File[]) => void;
 }
 
 export function UploadCSVStep({
   csvFile,
+  setCsvFile,
   error,
+  setError,
   extractedVariables,
   csvPreview,
+  setCsvPreview,
   missingVariables,
-  onFileChange,
 }: UploadCSVStepProps) {
 
-  const handleFileDrop = (files: File[]) => {
+  const handleFileChange = (files: File[]) => {
+    setError(null);
+    setCsvPreview(null);
+    setCsvFile(null);
+
     const file = files[0];
     if (!file) {
-      onFileChange([]); // Signal error case
+      // This case can be triggered from FileUpload component on rejection
+      setError("Invalid file. We only accept .csv files under 5MB.");
       return;
     }
-    if (file.size > MAX_FILE_SIZE || !file.name.toLowerCase().endsWith('.csv')) {
-      onFileChange([]); // Signal error case
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError('File size cannot exceed 5MB. Please select a smaller file.');
       return;
     }
-    onFileChange(files);
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+       setError('Invalid file type. We only accept .csv files.');
+       return;
+    }
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false, // Prevents automatic type conversion, treating all values as strings.
+      complete: (results) => {
+        if (results.errors.length) {
+          setError(`Error parsing CSV: ${results.errors[0].message}`);
+          setCsvPreview(null);
+          setCsvFile(null);
+          return;
+        }
+
+        const headers = results.meta.fields;
+        const data = results.data;
+
+        if (!headers || headers.length === 0) {
+            setError("Your CSV file appears to be empty. Please upload a file with a header row and at least one data row.");
+            setCsvPreview(null);
+            setCsvFile(null);
+            return;
+        }
+
+        if (data.length === 0) {
+            setError("Your CSV file only contains a header. Please add at least one data row below the header.");
+            setCsvPreview(null);
+            setCsvFile(null);
+            return;
+        }
+
+        setCsvFile(file);
+        setCsvPreview({ headers, data: data as Record<string, string>[] });
+      },
+      error: (err: any) => {
+        setError(`An unexpected error occurred while parsing: ${err.message}`);
+        setCsvPreview(null);
+        setCsvFile(null);
+      }
+    });
   };
 
   const removeFile = () => {
-    onFileChange([]);
+    setCsvFile(null);
+    setError(null);
+    setCsvPreview(null);
   };
 
   return (
@@ -59,7 +114,7 @@ export function UploadCSVStep({
       ) : (
         <div>
           <FileUpload
-            onFileSelect={handleFileDrop}
+            onFileSelect={handleFileChange}
             accept={ACCEPTED_FILE_TYPES}
             maxSize={MAX_FILE_SIZE}
             label="Drag and drop your .csv file here, or click to select"

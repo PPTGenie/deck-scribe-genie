@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -8,9 +7,6 @@ import { NewBatchFlow } from '@/components/NewBatchFlow';
 import { ContentContainer } from '@/components/ui/ContentContainer';
 
 const NewBatch = () => {
-  const [searchParams] = useSearchParams();
-  const draftId = searchParams.get('draft');
-
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -22,7 +18,7 @@ const NewBatch = () => {
           </header>
           <main className="flex-1 py-6">
             <ContentContainer>
-              <NewBatchFlow draftId={draftId} />
+              <NewBatchFlow />
             </ContentContainer>
           </main>
         </SidebarInset>
