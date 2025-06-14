@@ -24,7 +24,7 @@ interface UploadCSVStepProps {
 
 export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep, error, setError }: UploadCSVStepProps) {
   const { toast } = useToast();
-  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, any>[] } | null>(null);
+  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
 
 
   const handleFileChange = (files: File[]) => {
@@ -51,6 +51,7 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      dynamicTyping: false, // Prevents automatic type conversion, treating all values as strings.
       complete: (results) => {
         if (results.errors.length) {
           setError(`Error parsing CSV: ${results.errors[0].message}`);
@@ -68,7 +69,7 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
         }
         
         setCsvFile(file);
-        setCsvPreview({ headers, data: results.data as Record<string, any>[] });
+        setCsvPreview({ headers, data: results.data as Record<string, string>[] });
         toast({
           title: "✅ CSV Uploaded",
           description: `Your file "${file.name}" is ready for preview.`,
