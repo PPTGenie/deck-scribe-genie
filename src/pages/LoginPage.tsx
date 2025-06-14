@@ -42,7 +42,7 @@ const LoginPage = () => {
         title: "Success",
         description: "Logged in successfully",
       });
-      navigate('/');
+      navigate('/dashboard');
     }
     
     setLoading(false);
