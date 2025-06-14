@@ -73,15 +73,24 @@ export function UploadCSVStep({
         }
 
         const headers = results.meta.fields;
-        if (!headers || headers.length === 0 || results.data.length === 0) {
-            setError("CSV file appears to be empty or is missing a header row.");
+        const data = results.data;
+
+        if (!headers || headers.length === 0) {
+            setError("Your CSV file appears to be empty. Please upload a file with a header row and at least one data row.");
+            setCsvPreview(null);
+            setCsvFile(null);
+            return;
+        }
+
+        if (data.length === 0) {
+            setError("Your CSV file only contains a header. Please add at least one data row below the header.");
             setCsvPreview(null);
             setCsvFile(null);
             return;
         }
 
         setCsvFile(file);
-        setCsvPreview({ headers, data: results.data as Record<string, string>[] });
+        setCsvPreview({ headers, data: data as Record<string, string>[] });
         toast({
           title: "✅ CSV Uploaded",
           description: `Your file "${file.name}" is ready for preview.`,
