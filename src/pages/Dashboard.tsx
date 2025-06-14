@@ -20,8 +20,8 @@ const Dashboard = () => {
         .from('jobs')
         .select(`
           *,
-          templates!jobs_template_id_fkey(filename),
-          csv_uploads!jobs_csv_id_fkey(rows_count)
+          templates:template_id(filename),
+          csv_uploads:csv_id(rows_count)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
