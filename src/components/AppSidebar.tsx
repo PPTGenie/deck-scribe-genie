@@ -13,53 +13,32 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
-  SidebarMenuBadge,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Plus, Settings, LogOut, FileText } from 'lucide-react';
-import { getDrafts } from '@/lib/drafts';
+import { LayoutDashboard, Plus, Settings, LogOut } from 'lucide-react';
+
+const items = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "New Batch",
+    url: "/dashboard/new-batch",
+    icon: Plus,
+  },
+  {
+    title: "Settings",
+    url: "/dashboard/settings",
+    icon: Settings,
+  },
+];
 
 export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const [draftCount, setDraftCount] = React.useState(getDrafts().length);
-
-  React.useEffect(() => {
-    const updateCount = () => setDraftCount(getDrafts().length);
-
-    window.addEventListener('draftsUpdated', updateCount);
-    window.addEventListener('focus', updateCount);
-
-    return () => {
-      window.removeEventListener('draftsUpdated', updateCount);
-      window.removeEventListener('focus', updateCount);
-    };
-  }, []);
-
-  const items = [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-      icon: LayoutDashboard,
-    },
-    {
-      title: "New Batch",
-      url: "/dashboard/new-batch",
-      icon: Plus,
-    },
-    {
-      title: "My Drafts",
-      url: "/dashboard/drafts",
-      icon: FileText,
-      badge: draftCount > 0 ? draftCount : undefined,
-    },
-    {
-      title: "Settings",
-      url: "/dashboard/settings",
-      icon: Settings,
-    },
-  ];
 
   const handleSignOut = async () => {
     await signOut();
@@ -88,7 +67,6 @@ export function AppSidebar() {
                     <button onClick={() => navigate(item.url)}>
                       <item.icon />
                       <span>{item.title}</span>
-                      {item.badge && <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>}
                     </button>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

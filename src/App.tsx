@@ -14,7 +14,6 @@ import NewBatch from "./pages/NewBatch";
 import Settings from "./pages/Settings";
 import PrivateRoute from "./components/PrivateRoute";
 import NotFound from "./pages/NotFound";
-import Drafts from "./pages/Drafts";
 
 const queryClient = new QueryClient();
 
@@ -43,14 +42,6 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <NewBatch />
-                </PrivateRoute>
-              } 
-            />
-             <Route 
-              path="/dashboard/drafts" 
-              element={
-                <PrivateRoute>
-                  <Drafts />
                 </PrivateRoute>
               } 
             />

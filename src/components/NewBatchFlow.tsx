@@ -1,13 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
 import { UploadCSVStep } from '@/components/UploadCSVStep';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
-import { useDraft } from '@/context/DraftContext';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -16,47 +14,47 @@ const steps = [
 ];
 
 export function NewBatchFlow() {
-  const {
-    isLoading,
-    currentStep,
-    templateFile,
-    setTemplateFile,
-    csvFile,
-    setCsvFile,
-    extractedVariables,
-    setExtractedVariables,
-    csvPreview,
-    setCsvPreview,
-    updateCurrentStep,
-    error,
-    setError,
-    isExtracting,
-    setIsExtracting,
-    missingVariables,
-  } = useDraft();
+  const [currentStep, setCurrentStep] = useState(0); // Start at step 1
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null); // No default error
+  const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
+  const [missingVariables, setMissingVariables] = useState<string[]>([]);
+
+  // When template file is cleared, also clear extracted variables and csv data.
+  React.useEffect(() => {
+    if (!templateFile) {
+        setExtractedVariables(null);
+        setCsvFile(null);
+        setCsvPreview(null);
+        setMissingVariables([]);
+    }
+  }, [templateFile]);
   
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-64 w-full" />
-        <div className="flex justify-between">
-          <Skeleton className="h-10 w-20" />
-          <Skeleton className="h-10 w-20" />
-        </div>
-      </div>
-    );
-  }
+  // Recalculate missing variables when template variables or CSV headers change
+  React.useEffect(() => {
+    if (extractedVariables && csvPreview?.headers) {
+      const missing = extractedVariables.filter(v => !csvPreview.headers.includes(v));
+      setMissingVariables(missing);
+    } else {
+      setMissingVariables([]);
+    }
+  }, [extractedVariables, csvPreview]);
+
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
-      updateCurrentStep(currentStep + 1);
+      setCurrentStep(currentStep + 1);
+      setError(null);
     }
   };
 
   const goToPrevStep = () => {
     if (currentStep > 0) {
-      updateCurrentStep(currentStep - 1);
+      setCurrentStep(currentStep - 1);
+      setError(null);
     }
   };
 
