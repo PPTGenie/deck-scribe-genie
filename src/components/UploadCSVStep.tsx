@@ -1,9 +1,12 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { File, X, Info } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import Papa from 'papaparse';
+import { CSVPreviewTable } from './CSVPreviewTable';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = {
@@ -21,9 +24,14 @@ interface UploadCSVStepProps {
 
 export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep, error, setError }: UploadCSVStepProps) {
   const { toast } = useToast();
+  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, any>[] } | null>(null);
+
 
   const handleFileChange = (files: File[]) => {
     setError(null);
+    setCsvPreview(null);
+    setCsvFile(null);
+
     const file = files[0];
     if (!file) {
       // This case can be triggered from FileUpload component on rejection
@@ -40,16 +48,44 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
        return;
     }
 
-    setCsvFile(file);
-    toast({
-      title: "✅ CSV Uploaded",
-      description: `Your file "${file.name}" is ready.`,
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.errors.length) {
+          setError(`Error parsing CSV: ${results.errors[0].message}`);
+          setCsvPreview(null);
+          setCsvFile(null);
+          return;
+        }
+
+        const headers = results.meta.fields;
+        if (!headers || headers.length === 0 || results.data.length === 0) {
+            setError("CSV file appears to be empty or is missing a header row.");
+            setCsvPreview(null);
+            setCsvFile(null);
+            return;
+        }
+        
+        setCsvFile(file);
+        setCsvPreview({ headers, data: results.data as Record<string, any>[] });
+        toast({
+          title: "✅ CSV Uploaded",
+          description: `Your file "${file.name}" is ready for preview.`,
+        });
+      },
+      error: (err: any) => {
+        setError(`An unexpected error occurred while parsing: ${err.message}`);
+        setCsvPreview(null);
+        setCsvFile(null);
+      }
     });
   };
 
   const removeFile = () => {
     setCsvFile(null);
     setError(null);
+    setCsvPreview(null);
   };
 
   const PlaceholderInfo = () => (
@@ -68,8 +104,8 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
     <div className="space-y-6">
       <PlaceholderInfo />
 
-      {csvFile ? (
-        <div className="w-full animate-in fade-in duration-300">
+      {csvFile && csvPreview ? (
+        <div className="w-full animate-in fade-in duration-300 space-y-4">
             <Alert>
                 <File className="h-4 w-4" />
                 <AlertTitle>File Selected</AlertTitle>
@@ -86,6 +122,7 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
                     </Button>
                 </AlertDescription>
             </Alert>
+            <CSVPreviewTable headers={csvPreview.headers} data={csvPreview.data} />
         </div>
       ) : (
         <div>
@@ -106,7 +143,7 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={goToPrevStep}>Back</Button>
-        <Button onClick={goToNextStep} disabled={!csvFile || !!error}>
+        <Button onClick={goToNextStep} disabled={!csvFile || !!error || !csvPreview}>
           Next
         </Button>
       </div>
