@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -21,19 +21,29 @@ interface UploadCSVStepProps {
   error: string | null;
   setError: (error: string | null) => void;
   extractedVariables: string[] | null;
+  csvPreview: { headers: string[]; data: Record<string, string>[] } | null;
+  setCsvPreview: (preview: { headers: string[]; data: Record<string, string>[] } | null) => void;
+  missingVariables: string[];
 }
 
-export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep, error, setError, extractedVariables }: UploadCSVStepProps) {
+export function UploadCSVStep({
+  csvFile,
+  setCsvFile,
+  goToNextStep,
+  goToPrevStep,
+  error,
+  setError,
+  extractedVariables,
+  csvPreview,
+  setCsvPreview,
+  missingVariables,
+}: UploadCSVStepProps) {
   const { toast } = useToast();
-  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
-  const [missingVariables, setMissingVariables] = useState<string[]>([]);
-
 
   const handleFileChange = (files: File[]) => {
     setError(null);
     setCsvPreview(null);
     setCsvFile(null);
-    setMissingVariables([]);
 
     const file = files[0];
     if (!file) {
@@ -70,11 +80,6 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
             setCsvFile(null);
             return;
         }
-        
-        if (extractedVariables && headers) {
-            const missing = extractedVariables.filter(v => !headers.includes(v));
-            setMissingVariables(missing);
-        }
 
         setCsvFile(file);
         setCsvPreview({ headers, data: results.data as Record<string, string>[] });
@@ -95,7 +100,6 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
     setCsvFile(null);
     setError(null);
     setCsvPreview(null);
-    setMissingVariables([]);
   };
 
   const PlaceholderInfo = () => (

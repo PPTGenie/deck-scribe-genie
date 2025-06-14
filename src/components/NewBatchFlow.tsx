@@ -20,13 +20,29 @@ export function NewBatchFlow() {
   const [error, setError] = useState<string | null>(null); // No default error
   const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
+  const [missingVariables, setMissingVariables] = useState<string[]>([]);
 
-  // When template file is cleared, also clear extracted variables.
+  // When template file is cleared, also clear extracted variables and csv data.
   React.useEffect(() => {
     if (!templateFile) {
         setExtractedVariables(null);
+        setCsvFile(null);
+        setCsvPreview(null);
+        setMissingVariables([]);
     }
   }, [templateFile]);
+  
+  // Recalculate missing variables when template variables or CSV headers change
+  React.useEffect(() => {
+    if (extractedVariables && csvPreview?.headers) {
+      const missing = extractedVariables.filter(v => !csvPreview.headers.includes(v));
+      setMissingVariables(missing);
+    } else {
+      setMissingVariables([]);
+    }
+  }, [extractedVariables, csvPreview]);
+
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -73,6 +89,9 @@ export function NewBatchFlow() {
               error={error}
               setError={setError}
               extractedVariables={extractedVariables}
+              csvPreview={csvPreview}
+              setCsvPreview={setCsvPreview}
+              missingVariables={missingVariables}
             />
           )}
           {currentStep === 2 && (
