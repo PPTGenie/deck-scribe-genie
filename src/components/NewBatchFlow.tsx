@@ -1,0 +1,68 @@
+
+import React, { useState } from 'react';
+import { Stepper } from '@/components/ui/stepper';
+import { UploadTemplateStep } from '@/components/UploadTemplateStep';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from './ui/button';
+
+const steps = [
+  { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
+  { id: 'Step 2', name: 'Upload CSV', description: 'Provide the data for generation.' },
+  { id: 'Step 3', name: 'Confirm & Start', description: 'Review your files and start the job.' },
+];
+
+export function NewBatchFlow() {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null); // This will be used in the next step
+
+  const goToNextStep = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+
+  const goToPrevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-8 max-w-3xl mx-auto">
+      <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
+      <Card>
+        <CardHeader>
+          <CardTitle>{steps[currentStep].name}</CardTitle>
+          <CardDescription>{steps[currentStep].description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {currentStep === 0 && (
+            <UploadTemplateStep
+              templateFile={templateFile}
+              setTemplateFile={setTemplateFile}
+              goToNextStep={goToNextStep}
+            />
+          )}
+          {currentStep === 1 && (
+            <div className="text-center p-8 space-y-4">
+              <p>Step 2: Upload CSV - Coming soon!</p>
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={goToPrevStep}>Back</Button>
+                <Button onClick={goToNextStep}>Next</Button>
+              </div>
+            </div>
+          )}
+          {currentStep === 2 && (
+            <div className="text-center p-8 space-y-4">
+              <p>Step 3: Confirm & Start - Coming soon!</p>
+               <div className="flex justify-start">
+                <Button variant="outline" onClick={goToPrevStep}>Back</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
