@@ -15,13 +15,13 @@ import {
   SidebarHeader,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Dashboard as DashboardIcon, Plus, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Plus, Settings, LogOut } from 'lucide-react';
 
 const items = [
   {
     title: "Dashboard",
     url: "/dashboard",
-    icon: DashboardIcon,
+    icon: LayoutDashboard,
   },
   {
     title: "New Batch",
