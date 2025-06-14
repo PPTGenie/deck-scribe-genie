@@ -58,8 +58,15 @@ export function NewBatchFlow() {
     }
   };
 
+  let isNextDisabled = false;
+  if (currentStep === 0) {
+    isNextDisabled = !templateFile || !!error || isExtracting;
+  } else if (currentStep === 1) {
+    isNextDisabled = !csvFile || !!error || !csvPreview || missingVariables.length > 0;
+  }
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4">
       <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
       <Card className={cn("transition-all", error && "border-destructive ring-1 ring-destructive/50")}>
         <CardHeader>
@@ -71,7 +78,6 @@ export function NewBatchFlow() {
             <UploadTemplateStep
               templateFile={templateFile}
               setTemplateFile={setTemplateFile}
-              goToNextStep={goToNextStep}
               error={error}
               setError={setError}
               extractedVariables={extractedVariables}
@@ -84,8 +90,6 @@ export function NewBatchFlow() {
             <UploadCSVStep
               csvFile={csvFile}
               setCsvFile={setCsvFile}
-              goToNextStep={goToNextStep}
-              goToPrevStep={goToPrevStep}
               error={error}
               setError={setError}
               extractedVariables={extractedVariables}
@@ -97,13 +101,27 @@ export function NewBatchFlow() {
           {currentStep === 2 && (
             <div className="text-center p-8 space-y-4">
               <p>Step 3: Confirm & Start - Coming soon!</p>
-               <div className="flex justify-start">
-                <Button variant="outline" onClick={goToPrevStep}>Back</Button>
-              </div>
             </div>
           )}
         </CardContent>
       </Card>
+      
+      <div className="flex w-full items-center justify-between pt-4">
+        {currentStep > 0 ? (
+          <Button variant="outline" onClick={goToPrevStep}>
+            Back
+          </Button>
+        ) : <div />}
+
+        {currentStep < steps.length - 1 ? (
+          <Button onClick={goToNextStep} disabled={isNextDisabled}>
+            Next
+          </Button>
+        ) : (
+          <Button disabled>Start Job</Button>
+        )}
+      </div>
+
     </div>
   );
 }

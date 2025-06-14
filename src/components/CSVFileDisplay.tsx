@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { File, X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CSVPreviewTable } from './CSVPreviewTable';
@@ -22,9 +22,9 @@ export function CSVFileDisplay({
 }: CSVFileDisplayProps) {
   return (
     <div className="w-full animate-in fade-in duration-300 space-y-4">
-      <Alert>
-        <File className="h-4 w-4" />
-        <AlertTitle>File Selected</AlertTitle>
+      <Alert className="border-green-500 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-950 dark:text-green-200 [&>svg]:text-green-500">
+        <CheckCircle2 className="h-4 w-4" />
+        <AlertTitle>CSV Ready</AlertTitle>
         <AlertDescription className="flex items-center justify-between">
           <span>
             {csvFile.name} (

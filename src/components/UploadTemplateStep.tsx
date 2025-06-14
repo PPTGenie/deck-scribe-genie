@@ -2,8 +2,7 @@ import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { File, X, Info, ChevronsUpDown, Loader2 } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { X, Info, ChevronsUpDown, Loader2, CheckCircle2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from '@/lib/utils';
 import { extractTemplateVariables } from '@/lib/pptx';
@@ -17,7 +16,6 @@ const ACCEPTED_FILE_TYPES = {
 interface UploadTemplateStepProps {
   templateFile: File | null;
   setTemplateFile: (file: File | null) => void;
-  goToNextStep: () => void;
   error: string | null;
   setError: (error: string | null) => void;
   extractedVariables: string[] | null;
@@ -29,7 +27,6 @@ interface UploadTemplateStepProps {
 export function UploadTemplateStep({
   templateFile,
   setTemplateFile,
-  goToNextStep,
   error,
   setError,
   extractedVariables,
@@ -37,7 +34,6 @@ export function UploadTemplateStep({
   isExtracting,
   setIsExtracting
 }: UploadTemplateStepProps) {
-  const { toast } = useToast();
   const [isMobile, setIsMobile] = React.useState(false);
   const [isHelperOpen, setIsHelperOpen] = React.useState(true);
 
@@ -81,10 +77,6 @@ export function UploadTemplateStep({
     try {
       const variables = await extractTemplateVariables(file);
       setExtractedVariables(variables);
-      toast({
-        title: "✅ Template Processed",
-        description: `We found ${variables.length} variable(s) in "${file.name}".`,
-      });
     } catch (e: any) {
       setError(e.message || "An unknown error occurred during variable extraction.");
     } finally {
@@ -95,6 +87,7 @@ export function UploadTemplateStep({
   const removeFile = () => {
     setTemplateFile(null);
     setError(null);
+    setExtractedVariables(null);
   };
 
   const PlaceholderInfo = () => (
@@ -132,9 +125,9 @@ export function UploadTemplateStep({
 
       {templateFile ? (
         <div className="w-full animate-in fade-in duration-300 space-y-4">
-            <Alert>
-                <File className="h-4 w-4" />
-                <AlertTitle>File Selected</AlertTitle>
+            <Alert className="border-green-500 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-950 dark:text-green-200 [&>svg]:text-green-500">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertTitle>Template Ready</AlertTitle>
                 <AlertDescription className="flex items-center justify-between">
                     <span>
                         {templateFile.name} (
@@ -179,12 +172,6 @@ export function UploadTemplateStep({
           )}
         </div>
       )}
-
-      <div className="flex justify-end">
-        <Button onClick={goToNextStep} disabled={!templateFile || !!error || isExtracting}>
-          Next
-        </Button>
-      </div>
     </div>
   );
 }

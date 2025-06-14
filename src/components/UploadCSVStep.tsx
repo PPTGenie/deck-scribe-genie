@@ -1,7 +1,6 @@
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
-import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
@@ -14,8 +13,6 @@ const ACCEPTED_FILE_TYPES = {
 interface UploadCSVStepProps {
   csvFile: File | null;
   setCsvFile: (file: File | null) => void;
-  goToNextStep: () => void;
-  goToPrevStep: () => void;
   error: string | null;
   setError: (error: string | null) => void;
   extractedVariables: string[] | null;
@@ -27,8 +24,6 @@ interface UploadCSVStepProps {
 export function UploadCSVStep({
   csvFile,
   setCsvFile,
-  goToNextStep,
-  goToPrevStep,
   error,
   setError,
   extractedVariables,
@@ -36,7 +31,6 @@ export function UploadCSVStep({
   setCsvPreview,
   missingVariables,
 }: UploadCSVStepProps) {
-  const { toast } = useToast();
 
   const handleFileChange = (files: File[]) => {
     setError(null);
@@ -90,10 +84,6 @@ export function UploadCSVStep({
 
         setCsvFile(file);
         setCsvPreview({ headers, data: data as Record<string, string>[] });
-        toast({
-          title: "✅ CSV Uploaded",
-          description: `Your file "${file.name}" is ready for preview.`,
-        });
       },
       error: (err: any) => {
         setError(`An unexpected error occurred while parsing: ${err.message}`);
@@ -137,13 +127,6 @@ export function UploadCSVStep({
           )}
         </div>
       )}
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={goToPrevStep}>Back</Button>
-        <Button onClick={goToNextStep} disabled={!csvFile || !!error || !csvPreview || missingVariables.length > 0}>
-          Next
-        </Button>
-      </div>
     </div>
   );
 }
