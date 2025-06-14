@@ -102,11 +102,11 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     return () => { active = false; };
   }, [draftIdToLoad]);
   
+  const currentStep = draft?.currentStep;
+
   // Auto-save draft
   useEffect(() => {
     if (isRestoring || isLoading || !draft) return;
-    
-    if (!templateFile && !csvFile) return;
 
     let isMounted = true;
     const autoSave = async () => {
@@ -125,31 +125,38 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
         serializedCsv = { name: csvFile.name, type: csvFile.type, content };
       }
       
-      const draftData: Draft = {
-        ...draft,
-        name: templateFile?.name || draft.name,
-        timestamp: Date.now(),
-        templateFile: serializedTemplate,
-        csvFile: serializedCsv,
-        extractedVariables,
-        csvPreview
-      };
+      setDraft(currentDraft => {
+        if (!currentDraft) return null;
 
-      const savedDraft = saveDraft(draftData);
+        const draftData: Draft = {
+          ...currentDraft,
+          name: templateFile?.name || currentDraft.name,
+          timestamp: Date.now(),
+          templateFile: serializedTemplate,
+          csvFile: serializedCsv,
+          extractedVariables,
+          csvPreview,
+        };
+
+        const savedDraft = saveDraft(draftData);
+        if (isMounted) {
+          sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
+          toast.info("Draft auto-saved", { description: `Your progress for "${savedDraft.name}" has been saved.` });
+        }
+        return savedDraft;
+      });
+      
       if (isMounted) {
-        setDraft(savedDraft);
-        sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
         setIsSaving(false);
-        toast.info("Draft auto-saved", { description: `Your progress for "${savedDraft.name}" has been saved.` });
       }
     };
 
-    const handler = setTimeout(autoSave, 500);
+    const handler = setTimeout(autoSave, 1000);
     return () => {
       isMounted = false;
       clearTimeout(handler);
     };
-  }, [draft, templateFile, csvFile, extractedVariables, csvPreview, isRestoring, isLoading]);
+  }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep, isRestoring, isLoading]);
   
   useEffect(() => {
     if (!templateFile) {
