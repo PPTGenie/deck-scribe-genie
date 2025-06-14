@@ -9,7 +9,104 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      csv_uploads: {
+        Row: {
+          created_at: string | null
+          id: string
+          rows_count: number
+          storage_path: string
+          template_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          rows_count: number
+          storage_path: string
+          template_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          rows_count?: number
+          storage_path?: string
+          template_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "csv_uploads_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          created_at: string | null
+          csv_id: string
+          error_msg: string | null
+          finished_at: string | null
+          id: string
+          output_zip: string | null
+          progress: number
+          status: Database["public"]["Enums"]["job_status"]
+          template_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          csv_id: string
+          error_msg?: string | null
+          finished_at?: string | null
+          id?: string
+          output_zip?: string | null
+          progress?: number
+          status?: Database["public"]["Enums"]["job_status"]
+          template_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          csv_id?: string
+          error_msg?: string | null
+          finished_at?: string | null
+          id?: string
+          output_zip?: string | null
+          progress?: number
+          status?: Database["public"]["Enums"]["job_status"]
+          template_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      templates: {
+        Row: {
+          created_at: string | null
+          filename: string
+          id: string
+          storage_path: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          filename: string
+          id?: string
+          storage_path: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          filename?: string
+          id?: string
+          storage_path?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +115,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      job_status: "queued" | "processing" | "done" | "error"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +230,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      job_status: ["queued", "processing", "done", "error"],
+    },
   },
 } as const
