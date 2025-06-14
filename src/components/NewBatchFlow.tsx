@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
@@ -6,16 +7,16 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 
 const steps = [
-  { name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
-  { name: 'Upload CSV', description: 'Provide the data for generation.' },
-  { name: 'Confirm & Start', description: 'Review your files and start the job.' },
+  { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
+  { id: 'Step 2', name: 'Upload CSV', description: 'Provide the data for generation.' },
+  { id: 'Step 3', name: 'Confirm & Start', description: 'Review your files and start the job.' },
 ];
 
 export function NewBatchFlow() {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentStep, setCurrentStep] = useState(1); // MOCK: Start at step 2 to show completed state
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null); // This will be used in the next step
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>("❌ Whoops! That’s not a .pptx file. Only .pptx accepted."); // MOCK: For error state review
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -32,7 +33,7 @@ export function NewBatchFlow() {
 
   return (
     <div className="flex flex-col gap-8 max-w-3xl mx-auto">
-      <Stepper steps={steps} currentStep={currentStep} />
+      <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
       <Card className={cn("transition-all", error && "border-destructive ring-1 ring-destructive/50")}>
         <CardHeader>
           <CardTitle>{steps[currentStep].name}</CardTitle>
