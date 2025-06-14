@@ -20,7 +20,7 @@ export const extractTemplateVariables = async (file: File): Promise<string[]> =>
                 }
                 const zip = new PizZip(content as ArrayBuffer);
                 
-                const iModule = inspectModule();
+                const iModule = new inspectModule();
 
                 const doc = new Docxtemplater(zip, {
                     delimiters: {
