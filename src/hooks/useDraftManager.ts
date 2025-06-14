@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Draft, saveDraft, getDraft, fileToBase64, base64ToFile, DraftFile, CURRENT_DRAFT_ID_KEY } from '@/lib/drafts';
 import { toast } from 'sonner';
@@ -179,7 +178,7 @@ export const useDraftManager = (draftIdToLoad: string | null): DraftManagerResul
     return () => {
       clearTimeout(handler);
     };
-  }, [templateFile, csvFile, extractedVariables, csvPreview, draft, isRestoring, isLoading]);
+  }, [templateFile, csvFile, extractedVariables, csvPreview, isRestoring, isLoading]);
   
   useEffect(() => {
     if (!templateFile) {
