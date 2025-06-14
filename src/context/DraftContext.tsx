@@ -12,11 +12,16 @@ interface DraftContextState {
   csvFile: File | null;
   extractedVariables: string[] | null;
   csvPreview: { headers: string[]; data: Record<string, string>[] } | null;
+  error: string | null;
+  isExtracting: boolean;
+  missingVariables: string[];
   updateCurrentStep: (step: number) => void;
   setTemplateFile: (file: File | null) => void;
   setCsvFile: (file: File | null) => void;
   setExtractedVariables: (variables: string[] | null) => void;
   setCsvPreview: (preview: { headers: string[]; data: Record<string, string>[] } | null) => void;
+  setError: (error: string | null) => void;
+  setIsExtracting: (isExtracting: boolean) => void;
 }
 
 const DraftContext = createContext<DraftContextState | undefined>(undefined);
@@ -32,6 +37,11 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
   
   const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
   const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
+
+  // State moved from NewBatchFlow
+  const [error, setError] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [missingVariables, setMissingVariables] = useState<string[]>([]);
 
   // Load/initialize draft
   useEffect(() => {
@@ -166,8 +176,19 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     }
   }, [templateFile]);
 
+  // Recalculate missing variables when template variables or CSV headers change
+  useEffect(() => {
+    if (extractedVariables && csvPreview?.headers) {
+      const missing = extractedVariables.filter(v => !csvPreview.headers.includes(v));
+      setMissingVariables(missing);
+    } else {
+      setMissingVariables([]);
+    }
+  }, [extractedVariables, csvPreview]);
+
   const updateCurrentStep = (step: number) => {
     setDraft(d => d ? { ...d, currentStep: step } : null);
+    setError(null); // Also reset error on step change
   };
   
   const value = {
@@ -178,11 +199,16 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     csvFile,
     extractedVariables,
     csvPreview,
+    error,
+    isExtracting,
+    missingVariables,
     updateCurrentStep,
     setTemplateFile,
     setCsvFile,
     setExtractedVariables,
     setCsvPreview,
+    setError,
+    setIsExtracting,
   };
 
   return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;

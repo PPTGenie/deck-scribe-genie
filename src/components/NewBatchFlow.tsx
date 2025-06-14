@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
 import { UploadCSVStep } from '@/components/UploadCSVStep';
@@ -27,22 +26,13 @@ export function NewBatchFlow() {
     setExtractedVariables,
     csvPreview,
     setCsvPreview,
-    updateCurrentStep
+    updateCurrentStep,
+    error,
+    setError,
+    isExtracting,
+    setIsExtracting,
+    missingVariables,
   } = useDraft();
-
-  const [error, setError] = useState<string | null>(null);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [missingVariables, setMissingVariables] = useState<string[]>([]);
-  
-  // Recalculate missing variables when template variables or CSV headers change
-  useEffect(() => {
-    if (extractedVariables && csvPreview?.headers) {
-      const missing = extractedVariables.filter(v => !csvPreview.headers.includes(v));
-      setMissingVariables(missing);
-    } else {
-      setMissingVariables([]);
-    }
-  }, [extractedVariables, csvPreview]);
   
   if (isLoading || !draft) {
     return (
@@ -62,14 +52,12 @@ export function NewBatchFlow() {
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
       updateCurrentStep(currentStep + 1);
-      setError(null);
     }
   };
 
   const goToPrevStep = () => {
     if (currentStep > 0) {
       updateCurrentStep(currentStep - 1);
-      setError(null);
     }
   };
 
