@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
@@ -13,10 +12,10 @@ const steps = [
 ];
 
 export function NewBatchFlow() {
-  const [currentStep, setCurrentStep] = useState(1); // MOCK: Start at step 2 to show completed state
+  const [currentStep, setCurrentStep] = useState(0);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null); // This will be used in the next step
-  const [error, setError] = useState<string | null>("❌ Whoops! That’s not a .pptx file. Only .pptx accepted."); // MOCK: For error state review
+  const [error, setError] = useState<string | null>(null);
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
