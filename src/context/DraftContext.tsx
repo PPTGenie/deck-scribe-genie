@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Draft, saveDraft, getDraft, fileToBase64, base64ToFile, DraftFile, CURRENT_DRAFT_ID_KEY } from '@/lib/drafts';
 import { toast } from 'sonner';
@@ -21,6 +22,7 @@ interface DraftContextState {
   setCsvPreview: (preview: { headers: string[]; data: Record<string, string>[] } | null) => void;
   setError: (error: string | null) => void;
   setIsExtracting: (isExtracting: boolean) => void;
+  saveCurrentDraft: (isAutoSave?: boolean) => Promise<void>;
 }
 
 const DraftContext = createContext<DraftContextState | undefined>(undefined);
@@ -113,27 +115,23 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
   
   const currentStep = draft?.currentStep;
 
-  // Auto-save draft
-  useEffect(() => {
-    if (isRestoring || isLoading || !draft) return;
+  const saveCurrentDraft = async (isAutoSave = false) => {
+    if (!draft) return;
 
-    let isMounted = true;
-    const autoSave = async () => {
-      setIsSaving(true);
+    setIsSaving(true);
+    try {
       let serializedTemplate: DraftFile | null = null;
       if (templateFile) {
         const content = await fileToBase64(templateFile);
-        if (!isMounted) return;
         serializedTemplate = { name: templateFile.name, type: templateFile.type, content };
       }
 
       let serializedCsv: DraftFile | null = null;
       if (csvFile) {
         const content = await fileToBase64(csvFile);
-        if (!isMounted) return;
         serializedCsv = { name: csvFile.name, type: csvFile.type, content };
       }
-      
+
       setDraft(currentDraft => {
         if (!currentDraft) return null;
 
@@ -148,21 +146,28 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
         };
 
         const savedDraft = saveDraft(draftData);
-        if (isMounted) {
-          sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
+        sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
+        if (isAutoSave) {
           toast.info("Draft auto-saved", { description: `Your progress for "${savedDraft.name}" has been saved.` });
+        } else {
+          toast.success("Draft Saved", { description: `Your progress for "${savedDraft.name}" has been saved.` });
         }
         return savedDraft;
       });
-      
-      if (isMounted) {
-        setIsSaving(false);
-      }
-    };
+    } catch (error) {
+      console.error("Failed to save draft", error);
+      toast.error("Save failed", { description: "Could not save your draft. Please try again." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-    const handler = setTimeout(autoSave, 1000);
+  // Auto-save draft
+  useEffect(() => {
+    if (isRestoring || isLoading || !draft) return;
+
+    const handler = setTimeout(() => saveCurrentDraft(true), 1000);
     return () => {
-      isMounted = false;
       clearTimeout(handler);
     };
   }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep, isLoading]);
@@ -208,9 +213,10 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     setCsvPreview,
     setError,
     setIsExtracting,
+    saveCurrentDraft,
   };
 
-  return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
+  return <DraftContext.Provider value={value}>{children}</DraftProvider>;
 };
 
 export const useDraft = () => {
