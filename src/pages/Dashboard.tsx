@@ -7,6 +7,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { JobsTable } from '@/components/JobsTable';
+import { ContentContainer } from '@/components/ui/ContentContainer';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -73,19 +74,23 @@ const Dashboard = () => {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
+          <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b sm:px-6 lg:px-8">
             <SidebarTrigger className="-ml-1" />
             <h1 className="text-xl font-semibold">PPT Genie Dashboard</h1>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight">Your Batch Jobs</h2>
-              <p className="text-muted-foreground">
-                Track your PowerPoint generation tasks
-              </p>
-            </div>
-            <JobsTable jobs={jobs} />
-          </div>
+          <main className="flex-1 py-6">
+            <ContentContainer>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight">Your Batch Jobs</h2>
+                  <p className="text-muted-foreground">
+                    Track your PowerPoint generation tasks
+                  </p>
+                </div>
+                <JobsTable jobs={jobs} />
+              </div>
+            </ContentContainer>
+          </main>
         </SidebarInset>
       </div>
     </SidebarProvider>

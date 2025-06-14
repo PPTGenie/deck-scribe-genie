@@ -16,8 +16,10 @@ const NewBatch = () => {
             <SidebarTrigger className="-ml-1" />
             <h1 className="text-xl font-semibold">New Batch Job</h1>
           </header>
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">
-            <NewBatchFlow />
+          <main className="flex-1 py-6">
+            <ContentContainer>
+              <NewBatchFlow />
+            </ContentContainer>
           </main>
         </SidebarInset>
       </div>
