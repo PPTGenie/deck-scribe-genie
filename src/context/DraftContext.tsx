@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Draft, saveDraft, getDraft, fileToBase64, base64ToFile, DraftFile, CURRENT_DRAFT_ID_KEY } from '@/lib/drafts';
 import { toast } from 'sonner';
@@ -166,7 +165,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
       isMounted = false;
       clearTimeout(handler);
     };
-  }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep, isRestoring, isLoading]);
+  }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep, isLoading]);
   
   useEffect(() => {
     if (!templateFile) {
