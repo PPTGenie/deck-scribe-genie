@@ -1,12 +1,12 @@
-
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { File, X, Info, AlertTriangle } from 'lucide-react';
+import { File, X, Info, AlertTriangle, Download } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import { CSVPreviewTable } from './CSVPreviewTable';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = {
@@ -39,6 +39,24 @@ export function UploadCSVStep({
   missingVariables,
 }: UploadCSVStepProps) {
   const { toast } = useToast();
+
+  const handleDownloadTemplate = () => {
+    if (!extractedVariables || extractedVariables.length === 0) return;
+
+    // Create a CSV header string from the extracted variables.
+    const csvHeader = extractedVariables.join(',');
+    const blob = new Blob([csvHeader], { type: 'text/csv;charset=utf-8;' });
+
+    // Create a link to trigger the download.
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "template.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleFileChange = (files: File[]) => {
     setError(null);
@@ -111,6 +129,30 @@ export function UploadCSVStep({
         <br/>
         For example, if you have <code>{'{{company_name}}'}</code> in your template, you need a column named <code>company_name</code> in your CSV.
       </AlertDescription>
+      <div className="mt-4">
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div className="inline-block"> {/* Wrapper needed for tooltip on disabled button */}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDownloadTemplate}
+                            disabled={!extractedVariables || extractedVariables.length === 0}
+                        >
+                            <Download />
+                            Download Template CSV
+                        </Button>
+                    </div>
+                </TooltipTrigger>
+                {(!extractedVariables || extractedVariables.length === 0) && (
+                    <TooltipContent>
+                        <p>Upload a template in Step 1 to generate a CSV template.</p>
+                    </TooltipContent>
+                )}
+            </Tooltip>
+        </TooltipProvider>
+      </div>
     </Alert>
   );
 
