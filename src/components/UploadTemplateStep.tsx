@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
@@ -110,7 +109,13 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
                 <File className="h-4 w-4" />
                 <AlertTitle>File Selected</AlertTitle>
                 <AlertDescription className="flex items-center justify-between">
-                    <span>{templateFile.name} ({(templateFile.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    <span>
+                        {templateFile.name} (
+                        {(templateFile.size / 1024 / 1024) < 0.01
+                            ? `${Math.ceil(templateFile.size / 1024)} KB`
+                            : `${(templateFile.size / 1024 / 1024).toFixed(2)} MB`}
+                        )
+                    </span>
                     <Button variant="ghost" size="icon" onClick={removeFile}>
                         <X className="h-4 w-4" />
                     </Button>
