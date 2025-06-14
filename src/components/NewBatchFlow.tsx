@@ -72,6 +72,7 @@ export function NewBatchFlow() {
               goToPrevStep={goToPrevStep}
               error={error}
               setError={setError}
+              extractedVariables={extractedVariables}
             />
           )}
           {currentStep === 2 && (

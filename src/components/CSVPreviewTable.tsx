@@ -10,15 +10,17 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CSVPreviewTableProps {
   headers: string[];
   data: Record<string, string>[];
+  templateVariables: string[] | null;
 }
 
 const PREVIEW_ROW_COUNT = 5;
 
-export function CSVPreviewTable({ headers, data }: CSVPreviewTableProps) {
+export function CSVPreviewTable({ headers, data, templateVariables }: CSVPreviewTableProps) {
   const [showAll, setShowAll] = useState(false);
 
   if (!headers || headers.length === 0 || !data || data.length === 0) {
@@ -35,7 +37,18 @@ export function CSVPreviewTable({ headers, data }: CSVPreviewTableProps) {
           <TableHeader className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <TableRow>
               {headers.map((header) => (
-                <TableHead key={header} className="whitespace-nowrap">{header}</TableHead>
+                <TableHead
+                  key={header}
+                  className={cn(
+                    "whitespace-nowrap transition-colors",
+                    templateVariables &&
+                      (templateVariables.includes(header)
+                        ? "bg-green-100 text-green-900 dark:bg-green-900/40 dark:text-green-200"
+                        : "bg-red-100 text-red-900 dark:bg-red-900/40 dark:text-red-200")
+                  )}
+                >
+                  {header}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>

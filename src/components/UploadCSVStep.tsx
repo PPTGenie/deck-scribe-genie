@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { File, X, Info } from 'lucide-react';
+import { File, X, Info, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import { CSVPreviewTable } from './CSVPreviewTable';
@@ -20,17 +20,20 @@ interface UploadCSVStepProps {
   goToPrevStep: () => void;
   error: string | null;
   setError: (error: string | null) => void;
+  extractedVariables: string[] | null;
 }
 
-export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep, error, setError }: UploadCSVStepProps) {
+export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep, error, setError, extractedVariables }: UploadCSVStepProps) {
   const { toast } = useToast();
   const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
+  const [missingVariables, setMissingVariables] = useState<string[]>([]);
 
 
   const handleFileChange = (files: File[]) => {
     setError(null);
     setCsvPreview(null);
     setCsvFile(null);
+    setMissingVariables([]);
 
     const file = files[0];
     if (!file) {
@@ -68,6 +71,11 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
             return;
         }
         
+        if (extractedVariables && headers) {
+            const missing = extractedVariables.filter(v => !headers.includes(v));
+            setMissingVariables(missing);
+        }
+
         setCsvFile(file);
         setCsvPreview({ headers, data: results.data as Record<string, string>[] });
         toast({
@@ -87,6 +95,7 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
     setCsvFile(null);
     setError(null);
     setCsvPreview(null);
+    setMissingVariables([]);
   };
 
   const PlaceholderInfo = () => (
@@ -123,7 +132,19 @@ export function UploadCSVStep({ csvFile, setCsvFile, goToNextStep, goToPrevStep,
                     </Button>
                 </AlertDescription>
             </Alert>
-            <CSVPreviewTable headers={csvPreview.headers} data={csvPreview.data} />
+            {missingVariables.length > 0 && (
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Missing CSV Columns</AlertTitle>
+                    <AlertDescription>
+                        Your PPTX template requires the following columns which were not found in your CSV file:
+                        <div className="flex flex-wrap gap-1 mt-2">
+                            {missingVariables.map(v => <code key={v} className="text-xs font-semibold p-1 bg-red-200/50 rounded-sm">{v}</code>)}
+                        </div>
+                    </AlertDescription>
+                </Alert>
+            )}
+            <CSVPreviewTable headers={csvPreview.headers} data={csvPreview.data} templateVariables={extractedVariables} />
         </div>
       ) : (
         <div>
