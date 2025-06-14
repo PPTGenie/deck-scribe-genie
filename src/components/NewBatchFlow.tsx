@@ -7,9 +7,9 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 
 const steps = [
-  { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
-  { id: 'Step 2', name: 'Upload CSV', description: 'Provide the data for generation.' },
-  { id: 'Step 3', name: 'Confirm & Start', description: 'Review your files and start the job.' },
+  { name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
+  { name: 'Upload CSV', description: 'Provide the data for generation.' },
+  { name: 'Confirm & Start', description: 'Review your files and start the job.' },
 ];
 
 export function NewBatchFlow() {
@@ -33,7 +33,7 @@ export function NewBatchFlow() {
 
   return (
     <div className="flex flex-col gap-8 max-w-3xl mx-auto">
-      <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
+      <Stepper steps={steps} currentStep={currentStep} />
       <Card className={cn("transition-all", error && "border-destructive ring-1 ring-destructive/50")}>
         <CardHeader>
           <CardTitle>{steps[currentStep].name}</CardTitle>
