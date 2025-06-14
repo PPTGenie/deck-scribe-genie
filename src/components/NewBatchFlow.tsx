@@ -18,6 +18,15 @@ export function NewBatchFlow() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null); // No default error
+  const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  // When template file is cleared, also clear extracted variables.
+  React.useEffect(() => {
+    if (!templateFile) {
+        setExtractedVariables(null);
+    }
+  }, [templateFile]);
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -49,6 +58,10 @@ export function NewBatchFlow() {
               goToNextStep={goToNextStep}
               error={error}
               setError={setError}
+              extractedVariables={extractedVariables}
+              setExtractedVariables={setExtractedVariables}
+              isExtracting={isExtracting}
+              setIsExtracting={setIsExtracting}
             />
           )}
           {currentStep === 1 && (

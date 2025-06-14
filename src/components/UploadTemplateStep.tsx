@@ -21,14 +21,26 @@ interface UploadTemplateStepProps {
   goToNextStep: () => void;
   error: string | null;
   setError: (error: string | null) => void;
+  extractedVariables: string[] | null;
+  setExtractedVariables: (variables: string[] | null) => void;
+  isExtracting: boolean;
+  setIsExtracting: (isExtracting: boolean) => void;
 }
 
-export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep, error, setError }: UploadTemplateStepProps) {
+export function UploadTemplateStep({
+  templateFile,
+  setTemplateFile,
+  goToNextStep,
+  error,
+  setError,
+  extractedVariables,
+  setExtractedVariables,
+  isExtracting,
+  setIsExtracting
+}: UploadTemplateStepProps) {
   const { toast } = useToast();
   const [isMobile, setIsMobile] = React.useState(false);
   const [isHelperOpen, setIsHelperOpen] = React.useState(true);
-  const [extractedVariables, setExtractedVariables] = React.useState<string[] | null>(null);
-  const [isExtracting, setIsExtracting] = React.useState(false);
 
   React.useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');
@@ -48,7 +60,6 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
   const handleFileChange = async (files: File[]) => {
     setError(null);
     setTemplateFile(null);
-    setExtractedVariables(null);
 
     const file = files[0];
     if (!file) {
@@ -85,7 +96,6 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
   const removeFile = () => {
     setTemplateFile(null);
     setError(null);
-    setExtractedVariables(null);
   };
 
   const PlaceholderInfo = () => (
