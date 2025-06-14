@@ -9,9 +9,10 @@ interface FileUploadProps {
     accept: Accept;
     maxSize: number;
     label: string;
+    fileTypeDescription: string;
 }
 
-export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadProps) {
+export function FileUpload({ onFileSelect, accept, maxSize, label, fileTypeDescription }: FileUploadProps) {
   const [isSuccess, setIsSuccess] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
@@ -64,7 +65,7 @@ export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadP
               )}
             </p>
             <p className="text-xs text-muted-foreground">
-                PPTX only, max {maxSize / 1024 / 1024}MB.
+                {fileTypeDescription}, max {maxSize / 1024 / 1024}MB.
             </p>
           </>
         )}

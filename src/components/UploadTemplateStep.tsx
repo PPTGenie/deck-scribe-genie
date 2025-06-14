@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
@@ -53,7 +54,7 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
       setError('File size cannot exceed 50MB. Please select a smaller file.');
       return;
     }
-    if (!Object.keys(ACCEPTED_FILE_TYPES).includes(file.type)) {
+    if (!file.name.toLowerCase().endsWith('.pptx')) {
       setError('Invalid file type. We only accept .pptx files.');
       return;
     }
@@ -123,6 +124,7 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
             accept={ACCEPTED_FILE_TYPES}
             maxSize={MAX_FILE_SIZE}
             label="Drag and drop your .pptx file here, or click to select"
+            fileTypeDescription="PPTX only"
           />
           {error && (
             <p role="alert" className="mt-2 text-sm text-destructive flex items-center gap-1.5 animate-in fade-in">

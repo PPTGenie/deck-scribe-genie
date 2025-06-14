@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
+import { UploadCSVStep } from '@/components/UploadCSVStep';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ export function NewBatchFlow() {
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
+      setError(null);
     }
   };
 
@@ -50,13 +52,14 @@ export function NewBatchFlow() {
             />
           )}
           {currentStep === 1 && (
-            <div className="text-center p-8 space-y-4">
-              <p>Step 2: Upload CSV - Coming soon!</p>
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={goToPrevStep}>Back</Button>
-                <Button onClick={goToNextStep}>Next</Button>
-              </div>
-            </div>
+            <UploadCSVStep
+              csvFile={csvFile}
+              setCsvFile={setCsvFile}
+              goToNextStep={goToNextStep}
+              goToPrevStep={goToPrevStep}
+              error={error}
+              setError={setError}
+            />
           )}
           {currentStep === 2 && (
             <div className="text-center p-8 space-y-4">
