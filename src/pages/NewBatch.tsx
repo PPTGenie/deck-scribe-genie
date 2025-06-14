@@ -1,21 +1,24 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { NewBatchFlow } from '@/components/NewBatchFlow';
 import { ContentContainer } from '@/components/ui/ContentContainer';
 import { Button } from '@/components/ui/button';
-import { DRAFT_TO_LOAD_KEY, CURRENT_DRAFT_ID_KEY } from '@/lib/drafts';
+import { DraftProvider } from '@/context/DraftContext';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const NewBatch = () => {
-  const [key, setKey] = useState(Date.now());
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const draftIdToLoad = searchParams.get('draftId');
 
   const startNew = () => {
-    sessionStorage.removeItem(CURRENT_DRAFT_ID_KEY);
-    sessionStorage.removeItem(DRAFT_TO_LOAD_KEY);
-    setKey(Date.now()); // Re-mount NewBatchFlow to reset its state
+    navigate('/dashboard/new-batch', { replace: true });
   };
+
+  const providerKey = draftIdToLoad || 'new';
 
   return (
     <SidebarProvider>
@@ -31,7 +34,9 @@ const NewBatch = () => {
           </header>
           <main className="flex-1 py-6">
             <ContentContainer>
-              <NewBatchFlow key={key} />
+              <DraftProvider key={providerKey} draftIdToLoad={draftIdToLoad}>
+                <NewBatchFlow />
+              </DraftProvider>
             </ContentContainer>
           </main>
         </SidebarInset>

@@ -6,7 +6,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { ContentContainer } from '@/components/ui/ContentContainer';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getDrafts, deleteDraft, Draft, DRAFT_TO_LOAD_KEY } from '@/lib/drafts';
+import { getDrafts, deleteDraft, Draft } from '@/lib/drafts';
 import { formatDistanceToNow } from 'date-fns';
 
 const Drafts = () => {
@@ -14,17 +14,19 @@ const Drafts = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setDrafts(getDrafts());
+    const updateDrafts = () => setDrafts(getDrafts());
+    updateDrafts();
+    window.addEventListener('draftsUpdated', updateDrafts);
+    return () => window.removeEventListener('draftsUpdated', updateDrafts);
   }, []);
 
   const handleContinue = (draftId: string) => {
-    sessionStorage.setItem(DRAFT_TO_LOAD_KEY, draftId);
-    navigate('/dashboard/new-batch');
+    navigate(`/dashboard/new-batch?draftId=${draftId}`);
   };
 
   const handleDelete = (draftId: string) => {
     deleteDraft(draftId);
-    setDrafts(getDrafts());
+    // The 'draftsUpdated' event will trigger a re-render with the latest drafts.
   };
 
   return (

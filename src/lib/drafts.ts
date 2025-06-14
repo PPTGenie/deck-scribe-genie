@@ -18,7 +18,6 @@ export interface Draft {
 }
 
 const DRAFTS_KEY = 'ppt_genie_drafts';
-export const DRAFT_TO_LOAD_KEY = 'DRAFT_TO_LOAD';
 export const CURRENT_DRAFT_ID_KEY = 'new_batch_current_draft_id';
 
 const dispatchUpdateEvent = () => {
