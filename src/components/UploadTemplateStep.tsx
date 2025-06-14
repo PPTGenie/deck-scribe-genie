@@ -1,11 +1,14 @@
+
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { File, X, Info, ChevronsUpDown } from 'lucide-react';
+import { File, X, Info, ChevronsUpDown, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from '@/lib/utils';
+import { extractTemplateVariables } from '@/lib/pptx';
+import { TemplateVariablesDisplay } from './TemplateVariablesDisplay';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_FILE_TYPES = {
@@ -24,6 +27,8 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
   const { toast } = useToast();
   const [isMobile, setIsMobile] = React.useState(false);
   const [isHelperOpen, setIsHelperOpen] = React.useState(true);
+  const [extractedVariables, setExtractedVariables] = React.useState<string[] | null>(null);
+  const [isExtracting, setIsExtracting] = React.useState(false);
 
   React.useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 767px)');
@@ -40,11 +45,13 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
     return () => mediaQuery.removeEventListener('change', handleResize);
   }, []);
 
-  const handleFileChange = (files: File[]) => {
+  const handleFileChange = async (files: File[]) => {
     setError(null);
+    setTemplateFile(null);
+    setExtractedVariables(null);
+
     const file = files[0];
     if (!file) {
-      // This case can be triggered from FileUpload component on rejection
       setError("Invalid file. We only accept .pptx files under 50MB.");
       return;
     }
@@ -59,15 +66,26 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
     }
 
     setTemplateFile(file);
-    toast({
-      title: "✅ Template Uploaded",
-      description: `Your file "${file.name}" is ready.`,
-    });
+    setIsExtracting(true);
+
+    try {
+      const variables = await extractTemplateVariables(file);
+      setExtractedVariables(variables);
+      toast({
+        title: "✅ Template Processed",
+        description: `We found ${variables.length} variable(s) in "${file.name}".`,
+      });
+    } catch (e: any) {
+      setError(e.message || "An unknown error occurred during variable extraction.");
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const removeFile = () => {
     setTemplateFile(null);
     setError(null);
+    setExtractedVariables(null);
   };
 
   const PlaceholderInfo = () => (
@@ -104,7 +122,7 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
       )}
 
       {templateFile ? (
-        <div className="w-full animate-in fade-in duration-300">
+        <div className="w-full animate-in fade-in duration-300 space-y-4">
             <Alert>
                 <File className="h-4 w-4" />
                 <AlertTitle>File Selected</AlertTitle>
@@ -121,6 +139,20 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
                     </Button>
                 </AlertDescription>
             </Alert>
+            {isExtracting && (
+                <div className="flex items-center gap-2 text-muted-foreground p-2 animate-in fade-in">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Extracting variables from your template...</span>
+                </div>
+            )}
+            {extractedVariables && !isExtracting && (
+                <TemplateVariablesDisplay variables={extractedVariables} />
+            )}
+             {error && (
+                <p role="alert" className="text-sm text-destructive flex items-center gap-1.5 animate-in fade-in">
+                  {error}
+                </p>
+            )}
         </div>
       ) : (
         <div>
@@ -140,7 +172,7 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
       )}
 
       <div className="flex justify-end">
-        <Button onClick={goToNextStep} disabled={!templateFile || !!error}>
+        <Button onClick={goToNextStep} disabled={!templateFile || !!error || isExtracting}>
           Next
         </Button>
       </div>
