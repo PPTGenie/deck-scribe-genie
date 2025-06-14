@@ -2,6 +2,11 @@
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 
+// Using require for this CommonJS module because it doesn't have ES module exports.
+// This is a reliable way to get the inspect module functionality.
+// biome-ignore lint/suspicious/noVarRequires: <explanation>
+const inspectModule = require("docxtemplater/js/inspect-module");
+
 /**
  * Extracts variables from a .pptx file template.
  * Variables are expected to be in {{variable_name}} format.
@@ -19,6 +24,8 @@ export const extractTemplateVariables = async (file: File): Promise<string[]> =>
                 }
                 const zip = new PizZip(content as ArrayBuffer);
                 
+                const iModule = inspectModule();
+
                 const doc = new Docxtemplater(zip, {
                     delimiters: {
                         start: '{{',
@@ -28,13 +35,14 @@ export const extractTemplateVariables = async (file: File): Promise<string[]> =>
                     linebreaks: true,
                     // nullGetter is used to prevent errors when parsing templates with variables that have no data provided.
                     // We are only interested in extracting the tags.
-                    nullGetter: () => "", 
+                    nullGetter: () => "",
+                    modules: [iModule]
                 });
 
                 // This will throw an error if the template is corrupt
                 doc.render();
                 
-                const allTags = doc.inspectModule('parser').getAllTags();
+                const allTags = iModule.getAllTags();
                 const variables = Object.keys(allTags);
 
                 resolve([...new Set(variables)]);
