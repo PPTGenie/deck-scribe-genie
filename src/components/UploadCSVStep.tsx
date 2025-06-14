@@ -43,9 +43,10 @@ export function UploadCSVStep({
   const handleDownloadTemplate = () => {
     if (!extractedVariables || extractedVariables.length === 0) return;
 
-    // Create a CSV header string from the extracted variables.
     const csvHeader = extractedVariables.join(',');
-    const blob = new Blob([csvHeader], { type: 'text/csv;charset=utf-8;' });
+    const exampleRow = extractedVariables.map(v => `[Example for ${v}]`).join(',');
+    const csvContent = `${csvHeader}\n${exampleRow}`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 
     // Create a link to trigger the download.
     const link = document.createElement("a");
@@ -56,6 +57,10 @@ export function UploadCSVStep({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast({
+        title: "✅ Template Downloaded",
+        description: "template.csv has been downloaded with a sample row.",
+    });
   };
 
   const handleFileChange = (files: File[]) => {
@@ -120,41 +125,60 @@ export function UploadCSVStep({
     setCsvPreview(null);
   };
 
-  const PlaceholderInfo = () => (
-    <Alert>
-      <Info className="h-4 w-4" />
-      <AlertTitle>How your CSV file should be formatted</AlertTitle>
-      <AlertDescription>
-        The first row of your CSV must be a header row. The column names in the header must exactly match the placeholders in your template file.
-        <br/>
-        For example, if you have <code>{'{{company_name}}'}</code> in your template, you need a column named <code>company_name</code> in your CSV.
-      </AlertDescription>
-      <div className="mt-4">
-        <TooltipProvider>
-            <Tooltip>
+  const PlaceholderInfo = () => {
+    const hasVariables = extractedVariables && extractedVariables.length > 0;
+
+    return (
+      <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
+        <Info className="h-4 w-4 text-blue-500" />
+        <AlertTitle className="text-blue-800 dark:text-blue-300">
+          How to Format Your CSV Data
+        </AlertTitle>
+        <AlertDescription className="space-y-3 text-blue-700 dark:text-blue-300/90">
+          <p>
+            Your CSV file provides the data to fill in the placeholders we found in your template. The easiest way to get started is to download our generated template.
+          </p>
+          <div className="rounded-md bg-background/50 p-4">
+            <h4 className="font-semibold mb-2">Your template requires {extractedVariables?.length || '...'} column(s):</h4>
+            {hasVariables ? (
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {extractedVariables.map(v => <code key={v} className="text-xs font-semibold p-1 bg-blue-100 dark:bg-blue-900 rounded-sm">{v}</code>)}
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground italic mb-4">Upload a template in Step 1 to see required columns.</p>
+            )}
+
+            <TooltipProvider>
+              <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="inline-block"> {/* Wrapper needed for tooltip on disabled button */}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleDownloadTemplate}
-                            disabled={!extractedVariables || extractedVariables.length === 0}
-                        >
-                            <Download />
-                            Download Template CSV
-                        </Button>
-                    </div>
+                  <div className="inline-block"> {/* Wrapper for tooltip on disabled button */}
+                    <Button
+                      onClick={handleDownloadTemplate}
+                      disabled={!hasVariables}
+                    >
+                      <Download />
+                      Download CSV Template
+                    </Button>
+                  </div>
                 </TooltipTrigger>
-                {(!extractedVariables || extractedVariables.length === 0) && (
-                    <TooltipContent>
-                        <p>Upload a template in Step 1 to generate a CSV template.</p>
-                    </TooltipContent>
+                {!hasVariables && (
+                  <TooltipContent>
+                    <p>First, upload a template in Step 1.</p>
+                  </TooltipContent>
                 )}
-            </Tooltip>
-        </TooltipProvider>
-      </div>
-    </Alert>
-  );
+              </Tooltip>
+            </TooltipProvider>
+            <p className="text-xs text-muted-foreground mt-2">
+                This will download a <code>template.csv</code> file with the correct headers and a sample row.
+            </p>
+          </div>
+          <p>
+            Each row in your CSV file will be used to generate one unique presentation.
+          </p>
+        </AlertDescription>
+      </Alert>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -200,6 +224,7 @@ export function UploadCSVStep({
             maxSize={MAX_FILE_SIZE}
             label="Drag and drop your .csv file here, or click to select"
             fileTypeDescription="CSV only"
+            successMessage="Great! CSV ready."
           />
           {error && (
             <p role="alert" className="mt-2 text-sm text-destructive flex items-center gap-1.5 animate-in fade-in">

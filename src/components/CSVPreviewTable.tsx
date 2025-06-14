@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Table,
@@ -28,10 +27,25 @@ export function CSVPreviewTable({ headers, data, templateVariables }: CSVPreview
   }
 
   const visibleData = showAll ? data : data.slice(0, PREVIEW_ROW_COUNT);
+  
+  const Legend = () => (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mb-2">
+      <span className="font-semibold">Header Legend:</span>
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 rounded-sm bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700"></div>
+        <span>Matches a placeholder</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="w-3 h-3 rounded-sm bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700"></div>
+        <span>Extra column (ignored)</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-2">
         <p className="text-sm font-medium text-muted-foreground">CSV Data Preview</p>
+        {templateVariables && templateVariables.length > 0 && <Legend />}
       <div className="relative w-full overflow-auto rounded-md border" style={{ maxHeight: '400px' }}>
         <Table>
           <TableHeader className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

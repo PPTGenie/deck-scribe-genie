@@ -10,9 +10,10 @@ interface FileUploadProps {
     maxSize: number;
     label: string;
     fileTypeDescription: string;
+    successMessage?: string;
 }
 
-export function FileUpload({ onFileSelect, accept, maxSize, label, fileTypeDescription }: FileUploadProps) {
+export function FileUpload({ onFileSelect, accept, maxSize, label, fileTypeDescription, successMessage }: FileUploadProps) {
   const [isSuccess, setIsSuccess] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
@@ -52,7 +53,7 @@ export function FileUpload({ onFileSelect, accept, maxSize, label, fileTypeDescr
         {isSuccess ? (
           <div className="animate-in zoom-in-50 flex flex-col items-center">
             <Check className="w-10 h-10 mb-3 text-green-500" />
-            <p className="font-semibold text-green-500">Nice! Template loaded.</p>
+            <p className="font-semibold text-green-500">{successMessage || 'Nice! File loaded.'}</p>
           </div>
         ) : (
           <>
