@@ -7,7 +7,6 @@ import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
 import { DRAFT_TO_LOAD_KEY, saveDraft, getDraft, fileToBase64, base64ToFile, DraftFile, Draft, CURRENT_DRAFT_ID_KEY } from '@/lib/drafts';
 import { toast } from 'sonner';
-import { v4 as uuidv4 } from 'uuid';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -100,12 +99,6 @@ export function NewBatchFlow() {
         return;
       }
 
-      const currentDraftId = draftId || uuidv4();
-      if (!draftId) {
-        setDraftId(currentDraftId);
-        sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, currentDraftId);
-      }
-
       let serializedTemplate: DraftFile | null = null;
       if (templateFile) {
         const content = await fileToBase64(templateFile);
@@ -118,8 +111,8 @@ export function NewBatchFlow() {
         serializedCsv = { name: csvFile.name, type: csvFile.type, content };
       }
 
-      const draftToSave: Draft = {
-        id: currentDraftId,
+      const draftData = {
+        id: draftId, // Can be null for the first save
         name: templateFile?.name || 'Untitled Draft',
         timestamp: Date.now(),
         currentStep,
@@ -129,8 +122,14 @@ export function NewBatchFlow() {
         csvPreview,
       };
 
-      saveDraft(draftToSave);
-      toast.info("Draft auto-saved", { description: `Your progress for "${draftToSave.name}" has been saved.` });
+      const savedDraft = saveDraft(draftData);
+      
+      if (!draftId) {
+        setDraftId(savedDraft.id);
+        sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
+      }
+
+      toast.info("Draft auto-saved", { description: `Your progress for "${savedDraft.name}" has been saved.` });
 
     }, 2000); // Debounce save
 

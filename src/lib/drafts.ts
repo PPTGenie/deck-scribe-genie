@@ -1,4 +1,3 @@
-
 import { v4 as uuidv4 } from 'uuid';
 
 export interface DraftFile {
@@ -59,20 +58,22 @@ export const getDrafts = (): Draft[] => {
   }
 };
 
-export const saveDraft = (draft: Draft) => {
+export const saveDraft = (draft: Omit<Draft, 'id'> & { id?: string | null }): Draft => {
+  const draftWithId = { ...draft, id: draft.id || uuidv4() } as Draft;
   try {
     const drafts = getDrafts();
-    const existingIndex = drafts.findIndex((d) => d.id === draft.id);
+    const existingIndex = drafts.findIndex((d) => d.id === draftWithId.id);
     if (existingIndex > -1) {
-      drafts[existingIndex] = draft;
+      drafts[existingIndex] = draftWithId;
     } else {
-      drafts.unshift(draft);
+      drafts.unshift(draftWithId);
     }
     sessionStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
     dispatchUpdateEvent();
   } catch (error) {
     console.error('Failed to save draft:', error);
   }
+  return draftWithId;
 };
 
 export const getDraft = (id: string): Draft | undefined => {
@@ -89,4 +90,3 @@ export const deleteDraft = (id: string) => {
     console.error('Failed to delete draft:', error);
   }
 };
-
