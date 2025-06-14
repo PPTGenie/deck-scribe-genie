@@ -13,10 +13,10 @@ const steps = [
 ];
 
 export function NewBatchFlow() {
-  const [currentStep, setCurrentStep] = useState(1); // MOCK: Start at step 2 to show completed state
+  const [currentStep, setCurrentStep] = useState(0); // Start at step 1
   const [templateFile, setTemplateFile] = useState<File | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null); // This will be used in the next step
-  const [error, setError] = useState<string | null>("❌ Whoops! That’s not a .pptx file. Only .pptx accepted."); // MOCK: For error state review
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null); // No default error
 
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
@@ -32,7 +32,7 @@ export function NewBatchFlow() {
   };
 
   return (
-    <div className="flex flex-col gap-8 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-8">
       <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
       <Card className={cn("transition-all", error && "border-destructive ring-1 ring-destructive/50")}>
         <CardHeader>

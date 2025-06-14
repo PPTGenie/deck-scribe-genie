@@ -4,6 +4,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { NewBatchFlow } from '@/components/NewBatchFlow';
+import { ContentContainer } from '@/components/ui/ContentContainer';
 
 const NewBatch = () => {
   return (
@@ -11,13 +12,13 @@ const NewBatch = () => {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b">
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4 sm:px-6 lg:px-8">
             <SidebarTrigger className="-ml-1" />
             <h1 className="text-xl font-semibold">New Batch Job</h1>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
+          <main className="flex-1 p-4 sm:p-6 lg:p-8">
             <NewBatchFlow />
-          </div>
+          </main>
         </SidebarInset>
       </div>
     </SidebarProvider>
