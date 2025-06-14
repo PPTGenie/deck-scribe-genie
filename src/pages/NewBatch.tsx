@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
@@ -15,7 +14,7 @@ const NewBatch = () => {
             <SidebarTrigger className="-ml-1" />
             <h1 className="text-xl font-semibold">New Batch Job</h1>
           </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
+          <div className="flex flex-1 flex-col">
             <NewBatchFlow />
           </div>
         </SidebarInset>
