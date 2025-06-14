@@ -1,11 +1,7 @@
 
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
-
-// Using require for this CommonJS module because it doesn't have ES module exports.
-// This is a reliable way to get the inspect module functionality.
-// biome-ignore lint/suspicious/noVarRequires: <explanation>
-const inspectModule = require("docxtemplater/js/inspect-module");
+import inspectModule from "docxtemplater/js/inspect-module";
 
 /**
  * Extracts variables from a .pptx file template.
