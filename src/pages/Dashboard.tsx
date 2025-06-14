@@ -16,18 +16,46 @@ const Dashboard = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      // First get all jobs for the user
+      const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
-        .select(`
-          *,
-          templates:template_id(filename),
-          csv_uploads:csv_id(rows_count)
-        `)
+        .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data;
+      if (jobsError) throw jobsError;
+      if (!jobsData || jobsData.length === 0) return [];
+
+      // Get unique template and CSV IDs
+      const templateIds = [...new Set(jobsData.map(job => job.template_id))];
+      const csvIds = [...new Set(jobsData.map(job => job.csv_id))];
+
+      // Fetch templates
+      const { data: templatesData, error: templatesError } = await supabase
+        .from('templates')
+        .select('id, filename')
+        .in('id', templateIds);
+
+      if (templatesError) throw templatesError;
+
+      // Fetch CSV uploads
+      const { data: csvData, error: csvError } = await supabase
+        .from('csv_uploads')
+        .select('id, rows_count')
+        .in('id', csvIds);
+
+      if (csvError) throw csvError;
+
+      // Create lookup maps
+      const templatesMap = new Map(templatesData?.map(t => [t.id, t]) || []);
+      const csvMap = new Map(csvData?.map(c => [c.id, c]) || []);
+
+      // Combine the data
+      return jobsData.map(job => ({
+        ...job,
+        templates: templatesMap.get(job.template_id) || { filename: 'Unknown Template' },
+        csv_uploads: csvMap.get(job.csv_id) || { rows_count: 0 }
+      }));
     },
     enabled: !!user,
   });
