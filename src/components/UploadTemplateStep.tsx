@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
@@ -46,7 +45,7 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
     <div className="space-y-6">
         <div className="flex items-center gap-2">
             <p className="text-sm text-muted-foreground">
-                Select your .pptx template with {"{{placeholders}}"}.
+                Select your .pptx template with <code>{'{{placeholders}}'}</code>.
             </p>
             <TooltipProvider>
                 <Tooltip>
@@ -55,7 +54,7 @@ export function UploadTemplateStep({ templateFile, setTemplateFile, goToNextStep
                     </TooltipTrigger>
                     <TooltipContent>
                         <p className="max-w-xs p-2">
-                            Your PowerPoint template should contain placeholders like `{"{{name}}"` or `{"{{title}}"}`. These will be replaced with data from your CSV file. The CSV file must have headers that match the placeholder names.
+                            Your PowerPoint template should contain placeholders like <code>{'{{name}}'}</code> or <code>{'{{title}}'}</code>. These will be replaced with data from your CSV file. The CSV file must have headers that match the placeholder names.
                         </p>
                     </TooltipContent>
                 </Tooltip>
