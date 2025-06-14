@@ -170,7 +170,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     return () => {
       clearTimeout(handler);
     };
-  }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep, isLoading]);
+  }, [templateFile, csvFile, extractedVariables, csvPreview, currentStep]);
   
   useEffect(() => {
     if (!templateFile) {
@@ -216,7 +216,7 @@ export const DraftProvider = ({ children, draftIdToLoad }: { children: ReactNode
     saveCurrentDraft,
   };
 
-  return <DraftContext.Provider value={value}>{children}</DraftProvider>;
+  return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 };
 
 export const useDraft = () => {
