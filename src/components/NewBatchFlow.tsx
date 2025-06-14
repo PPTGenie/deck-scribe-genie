@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
@@ -92,9 +93,12 @@ export function NewBatchFlow() {
 
   // Auto-save draft
   React.useEffect(() => {
-    if (isRestoring) return;
+    let isMounted = true;
 
-    const handler = setTimeout(async () => {
+    const autoSave = async () => {
+      if (isRestoring) return;
+
+      // Don't save if there's nothing to save.
       if (!templateFile && !csvFile) {
         return;
       }
@@ -102,12 +106,14 @@ export function NewBatchFlow() {
       let serializedTemplate: DraftFile | null = null;
       if (templateFile) {
         const content = await fileToBase64(templateFile);
+        if (!isMounted) return;
         serializedTemplate = { name: templateFile.name, type: templateFile.type, content };
       }
 
       let serializedCsv: DraftFile | null = null;
       if (csvFile) {
         const content = await fileToBase64(csvFile);
+        if (!isMounted) return;
         serializedCsv = { name: csvFile.name, type: csvFile.type, content };
       }
 
@@ -124,16 +130,22 @@ export function NewBatchFlow() {
 
       const savedDraft = saveDraft(draftData);
       
-      if (!draftId) {
-        setDraftId(savedDraft.id);
-        sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
+      if (isMounted) {
+        if (!draftId) {
+          setDraftId(savedDraft.id);
+          sessionStorage.setItem(CURRENT_DRAFT_ID_KEY, savedDraft.id);
+        }
       }
 
       toast.info("Draft auto-saved", { description: `Your progress for "${savedDraft.name}" has been saved.` });
+    };
 
-    }, 2000); // Debounce save
+    // We save immediately on change now, instead of debouncing.
+    // A timeout is used to avoid instant saves on rapid changes, but a very short one.
+    const handler = setTimeout(autoSave, 100);
 
     return () => {
+      isMounted = false;
       clearTimeout(handler);
     };
   }, [isRestoring, currentStep, templateFile, csvFile, extractedVariables, csvPreview, draftId]);
