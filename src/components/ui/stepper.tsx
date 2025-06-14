@@ -23,7 +23,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                 <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
                   <Check className="h-5 w-5 text-primary" />
                 </span>
-                <span className="text-sm font-medium">{step.name}</span>
+                <span className="text-sm font-medium flex-1">{step.name}</span>
               </div>
             ) : stepIdx === currentStep ? (
               // Current Step
@@ -34,7 +34,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                 <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-primary">
                   <span className="text-sm font-bold text-primary">{stepIdx + 1}</span>
                 </span>
-                <span className="text-sm font-bold">{step.name}</span>
+                <span className="text-sm font-bold flex-1">{step.name}</span>
               </div>
             ) : (
               // Upcoming Step
@@ -42,7 +42,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
                 <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 border-gray-300">
                   <span className="text-sm font-medium text-muted-foreground">{stepIdx + 1}</span>
                 </span>
-                <span className="text-sm font-medium text-muted-foreground">{step.name}</span>
+                <span className="text-sm font-medium text-muted-foreground flex-1">{step.name}</span>
               </div>
             )}
           </li>
