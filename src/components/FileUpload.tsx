@@ -25,7 +25,7 @@ export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadP
       setTimeout(() => {
         onFileSelect(acceptedFiles);
         // Component will unmount, no need to reset state
-      }, 1000);
+      }, 2000);
     }
   }, [onFileSelect]);
 
@@ -41,7 +41,7 @@ export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadP
       {...getRootProps()}
       className={cn(
         'flex flex-col items-center justify-center w-full h-36 md:h-48 border-2 border-dashed rounded-lg cursor-pointer bg-background hover:bg-accent transition-all duration-200 ease-in-out',
-        isDragActive && !isDragReject && 'border-primary scale-105 bg-accent',
+        isDragActive && !isDragReject && 'border-primary scale-105 bg-accent animate-pulse',
         isDragReject && 'border-destructive bg-destructive/10',
         isSuccess && 'border-green-500 bg-green-500/10'
       )}
@@ -55,7 +55,7 @@ export function FileUpload({ onFileSelect, accept, maxSize, label }: FileUploadP
           </div>
         ) : (
           <>
-            <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragActive && !isDragReject && "animate-pulse")} />
+            <UploadCloud className={cn("w-10 h-10 mb-3 text-muted-foreground", isDragActive && !isDragReject && "text-primary")} />
             <p className="mb-2 text-sm text-muted-foreground">
               {isDragReject ? (
                 <span className="font-semibold text-destructive">Invalid file type or size</span>
