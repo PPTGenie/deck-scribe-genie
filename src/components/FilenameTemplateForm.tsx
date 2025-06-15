@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 interface FilenameTemplateFormProps {
   csvPreview: { headers: string[]; data: Record<string, string>[] };
   filenameTemplate: string;
-  setFilenameTemplate: (template: string) => void;
+  setFilenameTemplate: React.Dispatch<React.SetStateAction<string>>;
   setFilenameError: (error: string | null) => void;
 }
 

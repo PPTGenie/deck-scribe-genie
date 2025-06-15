@@ -10,7 +10,7 @@ interface ConfirmStepProps {
   csvFile: File;
   csvPreview: { headers: string[]; data: Record<string, string>[] };
   filenameTemplate: string;
-  setFilenameTemplate: (template: string) => void;
+  setFilenameTemplate: React.Dispatch<React.SetStateAction<string>>;
   setFilenameError: (error: string | null) => void;
 }
 
