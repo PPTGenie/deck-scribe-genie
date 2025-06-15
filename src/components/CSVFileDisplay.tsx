@@ -53,7 +53,11 @@ export function CSVFileDisplay({
           </AlertDescription>
         </Alert>
       )}
-      <CSVPreviewTable headers={csvPreview.headers} data={csvPreview.data} templateVariables={extractedVariables} />
+      <CSVPreviewTable 
+        headers={csvPreview.headers} 
+        data={csvPreview.data} 
+        templateVariables={extractedVariables ? [...extractedVariables.text, ...extractedVariables.images] : []} 
+      />
     </div>
   );
 }
