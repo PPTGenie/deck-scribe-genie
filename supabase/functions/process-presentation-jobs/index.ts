@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -14,6 +13,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log(`process-presentation-jobs function invoked at: ${new Date().toISOString()}`);
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -106,10 +106,21 @@ serve(async (req) => {
     // --- 5. Create and Upload ZIP Archive ---
     console.log(`${logPrefix(job.id)} Zipping generated files...`);
     const zipPath = `${job.templates.user_id}/${job.id}/presentations.zip`;
-    const zipStream = await zip(outputPaths.map(p => ({
-      path: p.split('/').pop()!,
-      data: storageClient.storage.from('outputs').download(p).then(res => res.data?.arrayBuffer().then(b => new Uint8Array(b)))
-    })));
+    
+    const filesToZip = await Promise.all(
+      outputPaths.map(async (p) => {
+        const { data, error } = await storageClient.storage.from('outputs').download(p);
+        if (error) throw new Error(`Failed to download ${p} for zipping: ${error.message}`);
+        if (!data) throw new Error(`No data for ${p} when zipping`);
+        const content = await data.arrayBuffer();
+        return {
+          path: p.split('/').pop()!,
+          data: new Uint8Array(content),
+        };
+      })
+    );
+
+    const zipStream = await zip(filesToZip);
 
     const zipUploadResponse = await storageClient.storage
       .from('outputs')
