@@ -1,9 +1,10 @@
+
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
-import { zip } from 'https://deno.land/x/zip@v1.2.5/mod.ts';
+import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
 
@@ -120,11 +121,16 @@ serve(async (req) => {
       })
     );
 
-    const zipStream = await zip(filesToZip);
+    const filesToZipObj: { [key: string]: Uint8Array } = {};
+    for (const file of filesToZip) {
+        filesToZipObj[file.path] = file.data;
+    }
+
+    const zippedData = fflate.zipSync(filesToZipObj);
 
     const zipUploadResponse = await storageClient.storage
       .from('outputs')
-      .upload(zipPath, zipStream, { upsert: true, contentType: 'application/zip' });
+      .upload(zipPath, zippedData, { upsert: true, contentType: 'application/zip' });
 
     if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
 
