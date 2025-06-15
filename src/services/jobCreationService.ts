@@ -1,8 +1,8 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { CsvPreview } from '@/types/files';
 import type { NavigateFunction } from 'react-router-dom';
+import { withRetry } from '@/lib/retry';
 
 type SetJobProgress = (progress: { value: number; message: string } | null) => void;
 
@@ -31,22 +31,36 @@ export async function createJob({
     const templateFileName = `${crypto.randomUUID()}.${templateExt}`;
     const templatePath = `${user.id}/${templateFileName}`;
     
-    const { error: templateUploadError } = await supabase.storage
-        .from('templates')
-        .upload(templatePath, templateFile);
-
-    if (templateUploadError) throw new Error(`Template upload failed: ${templateUploadError.message}`);
+    await withRetry(async () => {
+        const { error } = await supabase.storage
+            .from('templates')
+            .upload(templatePath, templateFile);
+        if (error) throw error;
+    }, {
+        onRetry: (error, attempt) => {
+            console.warn(`Template upload failed on attempt ${attempt}:`, error.message);
+            setJobProgress({ value: 10, message: `Template upload failed. Retrying... (${attempt}/3)` });
+        },
+    });
 
     // 2. Insert Template record
     setJobProgress({ value: 25, message: 'Saving template record...' });
-    const { data: templateData, error: templateInsertError } = await supabase
-        .from('templates')
-        .insert({ user_id: user.id, filename: templateFile.name, storage_path: templatePath })
-        .select('id')
-        .single();
+    const { data: templateData } = await withRetry(async () => {
+        const { data, error } = await supabase
+            .from('templates')
+            .insert({ user_id: user.id, filename: templateFile.name, storage_path: templatePath })
+            .select('id')
+            .single();
 
-    if (templateInsertError) throw new Error(`Failed to save template record: ${templateInsertError.message}`);
-    if (!templateData) throw new Error("Could not retrieve template ID after insert.");
+        if (error) throw error;
+        if (!data) throw new Error("Could not retrieve template ID after insert.");
+        return { data };
+    }, {
+        onRetry: (error, attempt) => {
+            console.warn(`Template DB insert failed on attempt ${attempt}:`, error.message);
+            setJobProgress({ value: 25, message: `DB operation failed. Retrying... (${attempt}/3)` });
+        }
+    });
 
     // 3. Upload CSV
     setJobProgress({ value: 45, message: `Uploading data file: ${csvFile.name}` });
@@ -54,40 +68,59 @@ export async function createJob({
     const csvFileName = `${crypto.randomUUID()}.${csvExt}`;
     const csvPath = `${user.id}/${csvFileName}`;
     
-    const { error: csvUploadError } = await supabase.storage
-        .from('csv_files')
-        .upload(csvPath, csvFile);
-
-    if (csvUploadError) throw new Error(`CSV upload failed: ${csvUploadError.message}`);
+    await withRetry(async () => {
+        const { error } = await supabase.storage
+            .from('csv_files')
+            .upload(csvPath, csvFile);
+        if (error) throw error;
+    }, {
+        onRetry: (error, attempt) => {
+            console.warn(`CSV upload failed on attempt ${attempt}:`, error.message);
+            setJobProgress({ value: 45, message: `CSV upload failed. Retrying... (${attempt}/3)` });
+        },
+    });
 
     // 4. Insert CSV record
     setJobProgress({ value: 65, message: 'Saving data record...' });
-    const { data: csvData, error: csvInsertError } = await supabase
-        .from('csv_uploads')
-        .insert({
-            user_id: user.id,
-            template_id: templateData.id,
-            rows_count: csvPreview.data.length,
-            storage_path: csvPath,
-        })
-        .select('id')
-        .single();
-
-    if (csvInsertError) throw new Error(`Failed to save CSV record: ${csvInsertError.message}`);
-    if (!csvData) throw new Error("Could not retrieve CSV upload ID after insert.");
+    const { data: csvData } = await withRetry(async () => {
+        const { data, error } = await supabase
+            .from('csv_uploads')
+            .insert({
+                user_id: user.id,
+                template_id: templateData.id,
+                rows_count: csvPreview.data.length,
+                storage_path: csvPath,
+            })
+            .select('id')
+            .single();
+        if (error) throw error;
+        if (!data) throw new Error("Could not retrieve CSV upload ID after insert.");
+        return { data };
+    }, {
+        onRetry: (error, attempt) => {
+            console.warn(`CSV DB insert failed on attempt ${attempt}:`, error.message);
+            setJobProgress({ value: 65, message: `DB operation failed. Retrying... (${attempt}/3)` });
+        }
+    });
 
     // 5. Insert Job record
     setJobProgress({ value: 85, message: 'Creating job...' });
-    const { error: jobInsertError } = await supabase
-        .from('jobs')
-        .insert({
-            user_id: user.id,
-            template_id: templateData.id,
-            csv_id: csvData.id,
-            filename_template: filenameTemplate,
-        });
-
-    if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
+    await withRetry(async () => {
+        const { error } = await supabase
+            .from('jobs')
+            .insert({
+                user_id: user.id,
+                template_id: templateData.id,
+                csv_id: csvData.id,
+                filename_template: filenameTemplate,
+            });
+        if (error) throw error;
+    }, {
+        onRetry: (error, attempt) => {
+            console.warn(`Job DB insert failed on attempt ${attempt}:`, error.message);
+            setJobProgress({ value: 85, message: `Job creation failed. Retrying... (${attempt}/3)` });
+        }
+    });
     
     // 6. Trigger edge function to start processing immediately.
     setJobProgress({ value: 95, message: 'Triggering processing...' });
