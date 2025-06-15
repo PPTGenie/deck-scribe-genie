@@ -6,9 +6,7 @@ import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
 import { ImageValidationErrors } from './ImageValidationErrors';
-import { ScientificNotationAlert } from './ScientificNotationAlert';
 import { validateAllImageFilenames } from '@/lib/imageValidation';
-import { processCsvData } from '@/lib/csvDataProcessing';
 import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -38,14 +36,12 @@ export function UploadCSVStep({
   missingVariables,
 }: UploadCSVStepProps) {
   const [imageValidationIssues, setImageValidationIssues] = React.useState<any[]>([]);
-  const [scientificNotationConversions, setScientificNotationConversions] = React.useState<any[]>([]);
 
   const handleFileChange = (files: File[]) => {
     setError(null);
     setCsvPreview(null);
     setCsvFile(null);
     setImageValidationIssues([]);
-    setScientificNotationConversions([]);
 
     const file = files[0];
     if (!file) {
@@ -65,7 +61,7 @@ export function UploadCSVStep({
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: false, // Keep everything as strings to prevent automatic scientific notation conversion
+      dynamicTyping: false,
       complete: (results) => {
         if (results.errors.length) {
           setError(`Error parsing CSV: ${results.errors[0].message}`);
@@ -75,7 +71,7 @@ export function UploadCSVStep({
         }
 
         const headers = results.meta.fields;
-        let data = results.data;
+        const data = results.data;
 
         if (!headers || headers.length === 0) {
             setError("Your CSV file appears to be empty. Please upload a file with a header row and at least one data row.");
@@ -90,11 +86,6 @@ export function UploadCSVStep({
             setCsvFile(null);
             return;
         }
-
-        // Process scientific notation in CSV data
-        const { processedData, conversionsFound } = processCsvData(data as Record<string, string>[]);
-        data = processedData;
-        setScientificNotationConversions(conversionsFound);
 
         // Validate image filenames if we have image columns
         const imageColumns = extractedVariables?.images || [];
@@ -121,7 +112,6 @@ export function UploadCSVStep({
     setError(null);
     setCsvPreview(null);
     setImageValidationIssues([]);
-    setScientificNotationConversions([]);
   };
 
   const handleRetryUpload = () => {
@@ -156,9 +146,6 @@ export function UploadCSVStep({
             missingVariables={missingVariables}
             extractedVariables={extractedVariables}
           />
-          
-          {/* Scientific notation conversion alert */}
-          <ScientificNotationAlert conversions={scientificNotationConversions} />
           
           {/* Image validation results */}
           {extractedVariables?.images && extractedVariables.images.length > 0 && (
