@@ -20,8 +20,8 @@ export function NewBatchWithImagesFlow() {
   const steps = hasImageVariables 
     ? [
         { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
-        { id: 'Step 2', name: 'Upload Images', description: 'Upload images referenced in your template.' },
-        { id: 'Step 3', name: 'Upload CSV', description: 'Provide the data for generation.' },
+        { id: 'Step 2', name: 'Upload CSV', description: 'Provide the data for generation.' },
+        { id: 'Step 3', name: 'Upload Images', description: 'Upload images referenced in your template.' },
         { id: 'Step 4', name: 'Confirm & Start', description: 'Review your files and start the job.' },
       ]
     : [
@@ -44,24 +44,18 @@ export function NewBatchWithImagesFlow() {
       return !state.templateFile || !!state.error || state.isExtracting;
     }
     
-    if (hasImageVariables) {
-      if (currentStep === 1) {
-        // Image step - check if all required images are uploaded
-        const missingImages = state.csvImageValues.filter(csvValue => {
-          const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
-          return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);
-        });
-        return missingImages.length > 0;
-      }
-      if (currentStep === 2) {
-        // CSV step
-        return !state.csvFile || !!state.error || !state.csvPreview || state.missingVariables.length > 0;
-      }
-    } else {
-      if (currentStep === 1) {
-        // CSV step (no images)
-        return !state.csvFile || !!state.error || !state.csvPreview || state.missingVariables.length > 0;
-      }
+    if (currentStep === 1) {
+      // CSV step - check if CSV is uploaded and no missing variables
+      return !state.csvFile || !!state.error || !state.csvPreview || state.missingVariables.length > 0;
+    }
+    
+    if (hasImageVariables && currentStep === 2) {
+      // Image step - check if all required images are uploaded
+      const missingImages = state.csvImageValues.filter(csvValue => {
+        const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
+        return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);
+      });
+      return missingImages.length > 0;
     }
     
     return false;
@@ -85,21 +79,7 @@ export function NewBatchWithImagesFlow() {
       );
     }
 
-    if (hasImageVariables && currentStep === 1) {
-      return (
-        <ImageUploadStep
-          uploadedImages={state.uploadedImages}
-          setUploadedImages={state.setUploadedImages}
-          requiredImages={state.extractedVariables?.images || []}
-          csvImageValues={state.csvImageValues}
-          error={state.error}
-          setError={state.setError}
-        />
-      );
-    }
-
-    const csvStepIndex = hasImageVariables ? 2 : 1;
-    if (currentStep === csvStepIndex) {
+    if (currentStep === 1) {
       return (
         <UploadCSVStep
           csvFile={state.csvFile}
@@ -110,6 +90,19 @@ export function NewBatchWithImagesFlow() {
           csvPreview={state.csvPreview}
           setCsvPreview={state.setCsvPreview}
           missingVariables={state.missingVariables}
+        />
+      );
+    }
+
+    if (hasImageVariables && currentStep === 2) {
+      return (
+        <ImageUploadStep
+          uploadedImages={state.uploadedImages}
+          setUploadedImages={state.setUploadedImages}
+          requiredImages={state.extractedVariables?.images || []}
+          csvImageValues={state.csvImageValues}
+          error={state.error}
+          setError={state.setError}
         />
       );
     }
