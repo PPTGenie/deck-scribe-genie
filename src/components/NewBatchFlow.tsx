@@ -138,7 +138,7 @@ export function NewBatchFlow() {
       if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
 
       toast.success("Job successfully queued! Redirecting to dashboard...", { id: jobToast, duration: 3000 });
-      setTimeout(() => navigate('/dashboard'), 500);
+      setTimeout(() => navigate('/dashboard'), 2000);
 
     } catch (error: any) {
       toast.error(error.message || "An unexpected error occurred.", { id: jobToast });

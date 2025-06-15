@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Table,
   TableBody,
@@ -11,6 +11,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from './ui/button';
+import { Download, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Job {
   id: string;
@@ -19,6 +23,7 @@ interface Job {
   created_at: string;
   templates: { filename: string };
   csv_uploads: { rows_count: number };
+  output_zip?: string;
   error_msg?: string;
 }
 
@@ -53,6 +58,32 @@ const getStatusVariant = (status: string) => {
 };
 
 export function JobsTable({ jobs }: JobsTableProps) {
+  const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
+
+  const handleDownload = async (job: Job) => {
+    if (!job.output_zip) return;
+    setDownloadingJobId(job.id);
+    const downloadToast = toast.loading("Preparing your download...");
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('outputs')
+        .createSignedUrl(job.output_zip, 300); // URL valid for 5 minutes
+
+      if (error) throw error;
+      
+      // Trigger download
+      window.location.href = data.signedUrl;
+
+      toast.success("Your download will begin shortly.", { id: downloadToast });
+
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create download link.", { id: downloadToast });
+    } finally {
+      setDownloadingJobId(null);
+    }
+  };
+
   if (jobs.length === 0) {
     return (
       <Card>
@@ -82,6 +113,7 @@ export function JobsTable({ jobs }: JobsTableProps) {
               <TableHead>Status</TableHead>
               <TableHead>Progress</TableHead>
               <TableHead>Created</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -92,7 +124,7 @@ export function JobsTable({ jobs }: JobsTableProps) {
                 </TableCell>
                 <TableCell>{job.csv_uploads.rows_count}</TableCell>
                 <TableCell>
-                  <Badge variant={getStatusVariant(job.status)}>
+                  <Badge variant={getStatusVariant(job.status)} className="capitalize">
                     {job.status}
                   </Badge>
                 </TableCell>
@@ -106,6 +138,23 @@ export function JobsTable({ jobs }: JobsTableProps) {
                 </TableCell>
                 <TableCell>
                   {new Date(job.created_at).toLocaleDateString()}
+                </TableCell>
+                <TableCell className="text-right">
+                  {job.status === 'done' && job.output_zip && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownload(job)}
+                      disabled={downloadingJobId === job.id}
+                    >
+                      {downloadingJobId === job.id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      Download
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

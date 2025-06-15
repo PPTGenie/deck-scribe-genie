@@ -1,1 +1,5 @@
+
 project_id = "zbdvghqxsuegsphcisfm"
+
+[functions.process-presentation-jobs]
+schedule = "*/30 * * * * *"
