@@ -2,9 +2,10 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, FileUp, CheckCircle2 } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { AlertDescription, AlertTitle } from './ui/alert';
 import { FilenameTemplateForm } from './FilenameTemplateForm';
 import type { CsvPreview } from '@/types/files';
+import { DismissibleAlert } from './DismissibleAlert';
 
 interface ConfirmStepProps {
   templateFile: File;
@@ -32,13 +33,13 @@ export function ConfirmStep({
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      <Alert>
+      <DismissibleAlert storageKey="confirm-step-alert-dismissed">
         <CheckCircle2 className="h-4 w-4" />
         <AlertTitle>Ready to Go!</AlertTitle>
         <AlertDescription>
           Please review the files and configure the output filenames below. Once you click "Start Job", the generation process will be queued.
         </AlertDescription>
-      </Alert>
+      </DismissibleAlert>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>

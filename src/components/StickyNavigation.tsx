@@ -4,33 +4,29 @@ import { useSidebar } from '@/components/ui/sidebar';
 import { Button } from './ui/button';
 import { Loader2 } from 'lucide-react';
 import { JobCreationProgress } from './JobCreationProgress';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from '@/lib/utils';
 
 interface StickyNavigationProps {
     currentStep: number;
     totalSteps: number;
     goToPrevStep: () => void;
-    handleNextWithTooltip: () => void;
+    goToNextStep: () => void;
     handleStartJob: () => void;
     isNextDisabled: boolean;
     isStartingJob: boolean;
     jobProgress: { value: number; message: string } | null;
     filenameError: string | null;
-    showNextButtonTooltip: boolean;
 }
 
 export function StickyNavigation({
     currentStep,
     totalSteps,
     goToPrevStep,
-    handleNextWithTooltip,
+    goToNextStep,
     handleStartJob,
     isNextDisabled,
     isStartingJob,
     jobProgress,
     filenameError,
-    showNextButtonTooltip,
 }: StickyNavigationProps) {
     const { open: sidebarOpen, isMobile } = useSidebar();
 
@@ -54,18 +50,9 @@ export function StickyNavigation({
                     </span>
 
                     {currentStep < totalSteps - 1 ? (
-                        <TooltipProvider>
-                            <Tooltip open={showNextButtonTooltip && !isNextDisabled} delayDuration={0}>
-                                <TooltipTrigger asChild>
-                                    <Button onClick={handleNextWithTooltip} disabled={isNextDisabled} className={cn({'animate-pulse': !isNextDisabled})}>
-                                        Next
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Click here to continue!</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <Button onClick={goToNextStep} disabled={isNextDisabled}>
+                            Next
+                        </Button>
                     ) : isStartingJob && jobProgress ? (
                         <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
                     ) : (

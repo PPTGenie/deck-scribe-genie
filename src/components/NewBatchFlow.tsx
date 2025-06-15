@@ -1,9 +1,7 @@
-
 import React from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { useNewBatchState } from '@/hooks/useNewBatchState';
 import { useStepNavigation } from '@/hooks/useStepNavigation';
-import { useFirstTimeUser } from '@/hooks/useFirstTimeUser';
 import { useJobCreation } from '@/hooks/useJobCreation';
 import { isNextStepDisabled } from '@/lib/stepValidation';
 import { StepCard } from './StepCard';
@@ -19,7 +17,6 @@ const steps = [
 export function NewBatchFlow() {
   const state = useNewBatchState();
   const { currentStep, goToNextStep, goToPrevStep } = useStepNavigation(steps.length, state.setError);
-  const { showNextButtonTooltip, markTooltipAsSeen } = useFirstTimeUser();
   const { isStartingJob, jobProgress, handleStartJob } = useJobCreation({
     templateFile: state.templateFile,
     csvFile: state.csvFile,
@@ -27,11 +24,6 @@ export function NewBatchFlow() {
     filenameTemplate: state.filenameTemplate,
     filenameError: state.filenameError,
   });
-
-  const handleNextWithTooltip = () => {
-    markTooltipAsSeen();
-    goToNextStep();
-  };
 
   const isNextDisabled = isNextStepDisabled({
     currentStep,
@@ -61,13 +53,12 @@ export function NewBatchFlow() {
         currentStep={currentStep}
         totalSteps={steps.length}
         goToPrevStep={goToPrevStep}
-        handleNextWithTooltip={handleNextWithTooltip}
+        goToNextStep={goToNextStep}
         handleStartJob={handleStartJob}
         isNextDisabled={isNextDisabled}
         isStartingJob={isStartingJob}
         jobProgress={jobProgress}
         filenameError={state.filenameError}
-        showNextButtonTooltip={showNextButtonTooltip}
       />
     </div>
   );
