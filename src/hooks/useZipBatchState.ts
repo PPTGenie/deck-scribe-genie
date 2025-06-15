@@ -2,13 +2,15 @@
 import { useState, useEffect } from 'react';
 import type { CsvPreview, TemplateVariables } from '@/types/files';
 
+interface ExtractedFiles {
+  template?: { file: File; name: string };
+  csv?: { file: File; name: string; data: any[] };
+  images: Record<string, File>;
+}
+
 export function useZipBatchState() {
   const [zipFile, setZipFile] = useState<File | null>(null);
-  const [extractedFiles, setExtractedFiles] = useState<{
-    template?: File;
-    csv?: File;
-    images: { [key: string]: File };
-  } | null>(null);
+  const [extractedFiles, setExtractedFiles] = useState<ExtractedFiles | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [extractedVariables, setExtractedVariables] = useState<TemplateVariables | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -57,7 +59,7 @@ export function useZipBatchState() {
           setError('Failed to parse CSV file. Please ensure it\'s properly formatted.');
         }
       };
-      reader.readAsText(extractedFiles.csv);
+      reader.readAsText(extractedFiles.csv.file);
     }
   }, [extractedFiles]);
 
