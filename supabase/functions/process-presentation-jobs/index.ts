@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -21,7 +20,6 @@ const renderTemplate = (template: string, data: Record<string, string>): string 
 const sanitizeFilename = (filename: string): string => {
   return filename.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 200);
 };
-
 
 serve(async (req) => {
   console.log(`process-presentation-jobs function invoked at: ${new Date().toISOString()}`);
@@ -141,7 +139,7 @@ serve(async (req) => {
         }
         usedFilenames.add(finalFilename);
         
-        const outputPath = `${job.templates.user_id}/${job.id}/${finalFilename}`;
+        const outputPath = `${job.user_id}/${job.id}/${finalFilename}`;
         
         const { error: uploadError } = await storageClient.storage
             .from('outputs')
@@ -159,7 +157,7 @@ serve(async (req) => {
 
     // --- 5. Create and Upload ZIP Archive ---
     console.log(`${logPrefix(job.id)} Zipping generated files...`);
-    const zipPath = `${job.templates.user_id}/${job.id}/presentations.zip`;
+    const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
     
     const filesToZip = await Promise.all(
       outputPaths.map(async (p) => {
