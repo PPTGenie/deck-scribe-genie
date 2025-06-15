@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -58,6 +59,12 @@ const sanitizeFilename = (filename: string): string => {
   return sanitized;
 };
 
+// Helper function to update progress with more granular steps
+const updateProgress = async (supabaseAdmin: any, jobId: string, progress: number, step: string) => {
+  console.log(`${logPrefix(jobId)} ${step} (${progress}%)`);
+  await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
+};
+
 serve(async (req) => {
   console.log(`process-presentation-jobs function invoked at: ${new Date().toISOString()}`);
   if (req.method === 'OPTIONS') {
@@ -99,8 +106,9 @@ serve(async (req) => {
   const storageClient = supabaseAdmin;
 
   try {
-    // --- 2. Download Template and CSV Files ---
-    console.log(`${logPrefix(job.id)} Downloading source files...`);
+    // --- 2. Download Template and CSV Files (5% total) ---
+    await updateProgress(supabaseAdmin, job.id, 1, 'Downloading template file...');
+    
     const [templateFile, csvFile] = await Promise.all([
       storageClient.storage.from('templates').download(job.templates.storage_path),
       storageClient.storage.from('csv_files').download(job.csv_uploads.storage_path),
@@ -108,6 +116,8 @@ serve(async (req) => {
 
     if (templateFile.error) throw new Error(`Failed to download template: ${templateFile.error.message}`);
     if (csvFile.error) throw new Error(`Failed to download CSV: ${csvFile.error.message}`);
+
+    await updateProgress(supabaseAdmin, job.id, 3, 'Files downloaded, parsing CSV...');
 
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
@@ -137,11 +147,20 @@ serve(async (req) => {
     const totalRows = parsedCsv.length;
     console.log(`${logPrefix(job.id)} Successfully parsed ${totalRows} data rows.`);
 
-    // --- 3. Process Each Row and Generate Presentations ---
+    await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
+
+    // --- 3. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
 
     for (const [index, row] of parsedCsv.entries()) {
+        // More granular progress updates during processing
+        const baseProgress = 5;
+        const processingProgress = 80;
+        const currentProgress = baseProgress + Math.round((index / totalRows) * processingProgress);
+        
+        await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
+
         const zip = new PizZip(templateData);
         const doc = new Docxtemplater(zip, {
             paragraphLoop: true,
@@ -187,16 +206,14 @@ serve(async (req) => {
         if (uploadError) throw new Error(`Failed to upload generated file for row ${index + 1}: ${uploadError.message}`);
         
         outputPaths.push(outputPath);
-
-        // --- 4. Update Progress ---
-        const progress = Math.round(((index + 1) / totalRows) * 95); // Reserve last 5% for zipping
-        await supabaseAdmin.from('jobs').update({ progress }).eq('id', job.id);
-        console.log(`${logPrefix(job.id)} Progress: ${progress}%`);
     }
 
-    // --- 5. Create and Upload ZIP Archive ---
-    console.log(`${logPrefix(job.id)} Zipping generated files...`);
+    // --- 4. Create and Upload ZIP Archive (85% to 95%) ---
+    await updateProgress(supabaseAdmin, job.id, 85, 'All presentations generated, creating ZIP archive...');
+    
     const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
+    
+    await updateProgress(supabaseAdmin, job.id, 87, 'Downloading files for ZIP creation...');
     
     const filesToZip = await Promise.all(
       outputPaths.map(async (p) => {
@@ -211,6 +228,8 @@ serve(async (req) => {
       })
     );
 
+    await updateProgress(supabaseAdmin, job.id, 90, 'Compressing files into ZIP...');
+
     const filesToZipObj: { [key: string]: Uint8Array } = {};
     for (const file of filesToZip) {
         filesToZipObj[file.path] = file.data;
@@ -218,14 +237,17 @@ serve(async (req) => {
 
     const zippedData = fflate.zipSync(filesToZipObj);
 
+    await updateProgress(supabaseAdmin, job.id, 93, 'Uploading ZIP file...');
+
     const zipUploadResponse = await storageClient.storage
       .from('outputs')
       .upload(zipPath, zippedData, { upsert: true, contentType: 'application/zip' });
 
     if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
 
-    // --- 6. Finalize Job ---
-    console.log(`${logPrefix(job.id)} Finalizing job.`);
+    // --- 5. Finalize Job (95% to 100%) ---
+    await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
+    
     await supabaseAdmin
       .from('jobs')
       .update({
@@ -235,6 +257,8 @@ serve(async (req) => {
         finished_at: new Date().toISOString(),
       })
       .eq('id', job.id);
+
+    console.log(`${logPrefix(job.id)} Job completed successfully at 100%.`);
 
     return new Response(JSON.stringify({ message: `Job ${job.id} completed.` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
