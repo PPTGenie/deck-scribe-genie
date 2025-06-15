@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
+import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.12.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
@@ -23,46 +24,84 @@ const sanitizeFilename = (filename: string): string => {
   // and remove the diacritics.
   const withoutDiacritics = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  // 2. Replace other common special characters
   const withReplacements = withoutDiacritics
     .replace(/ø/g, 'o').replace(/Ø/g, 'O')
     .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
     .replace(/ß/g, 'ss')
     .replace(/ł/g, 'l').replace(/Ł/g, 'L');
 
-  // 3. Define invalid characters for file systems.
-  // This includes Windows/macOS/Linux invalid chars, plus others that can cause issues.
-  // Also removes control characters.
-  // eslint-disable-next-line no-control-regex
   const invalidCharsRegex = /[<>:"/\\|?*`!^~[\]{}';=,+]|[\x00-\x1F]/g;
-
-  // 4. Define reserved filenames for Windows. We check against the name part only.
   const reservedNamesRegex = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
 
-  // 5. Sanitize the string
   let sanitized = withReplacements
-    .replace(invalidCharsRegex, '') // Replace invalid characters
-    .replace(/\s+/g, ' ')             // Collapse whitespace to single spaces
-    .trim();                          // Trim leading/trailing whitespace
+    .replace(invalidCharsRegex, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  // 6. Remove any leading or trailing periods
   sanitized = sanitized.replace(/^\.+|\.+$/g, '');
 
-  // 7. Check if the sanitized name is a reserved name.
   if (reservedNamesRegex.test(sanitized)) {
     sanitized = `_${sanitized}`;
   }
 
-  // 8. Limit length to a reasonable value
   sanitized = sanitized.slice(0, 200);
 
   return sanitized;
 };
 
-// Helper function to update progress with more granular steps
 const updateProgress = async (supabaseAdmin: any, jobId: string, progress: number, step: string) => {
   console.log(`${logPrefix(jobId)} ${step} (${progress}%)`);
   await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
+};
+
+// Image processing helper
+const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string) => {
+  return async (tagValue: string, tagName: string) => {
+    try {
+      // Normalize the image filename
+      const normalizedFilename = tagValue.toLowerCase()
+        .replace(/\.jpeg$/i, '.jpg')
+        .replace(/\.png$/i, '.png')
+        .replace(/\.jpg$/i, '.jpg');
+
+      const imagePath = `${userId}/${templateId}/${normalizedFilename}`;
+      
+      console.log(`Fetching image: ${imagePath}`);
+      
+      const { data, error } = await supabaseAdmin.storage
+        .from('images')
+        .download(imagePath);
+
+      if (error) {
+        console.warn(`Image not found: ${imagePath}, trying without path...`);
+        // Try alternative path (flat structure)
+        const flatPath = `${userId}/${templateId}/${tagValue}`;
+        const { data: flatData, error: flatError } = await supabaseAdmin.storage
+          .from('images')
+          .download(flatPath);
+        
+        if (flatError) {
+          console.error(`Image not found in either location: ${imagePath} or ${flatPath}`);
+          return null; // Return null for missing images rather than throwing
+        }
+        
+        return new Uint8Array(await flatData.arrayBuffer());
+      }
+
+      return new Uint8Array(await data.arrayBuffer());
+    } catch (error) {
+      console.error(`Error loading image ${tagValue}:`, error);
+      return null;
+    }
+  };
+};
+
+const createImageOptions = (imageGetter: any) => {
+  return {
+    centered: false,
+    getImage: imageGetter,
+    getSize: () => [150, 150], // Default size in pixels
+  };
 };
 
 serve(async (req) => {
@@ -71,7 +110,6 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Use admin client to claim a job and update status
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -92,7 +130,7 @@ serve(async (req) => {
     .single();
 
   if (claimError || !job) {
-    if (claimError && claimError.code !== 'PGRST116') { // Ignore 'no rows' error
+    if (claimError && claimError.code !== 'PGRST116') {
       console.error('Error claiming job:', claimError);
     }
     return new Response(JSON.stringify({ message: 'No queued jobs found.' }), {
@@ -149,12 +187,16 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
+    // --- 3. Setup Image Module ---
+    const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id);
+    const imageOptions = createImageOptions(imageGetter);
+    const imageModule = new ImageModule(imageOptions);
+
+    // --- 4. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
 
     for (const [index, row] of parsedCsv.entries()) {
-        // More granular progress updates during processing
         const baseProgress = 5;
         const processingProgress = 80;
         const currentProgress = baseProgress + Math.round((index / totalRows) * processingProgress);
@@ -166,7 +208,8 @@ serve(async (req) => {
             paragraphLoop: true,
             linebreaks: true,
             delimiters: { start: '{{', end: '}}' },
-            nullGetter: () => ""
+            nullGetter: () => "",
+            modules: [imageModule]
         });
 
         doc.render(row);
@@ -182,12 +225,10 @@ serve(async (req) => {
           outputFilename = sanitized + '.pptx';
         }
 
-        // Fallback if template is missing, empty, or only contains invalid characters
         if (!outputFilename || outputFilename === '.pptx') {
           outputFilename = `row_${index + 1}.pptx`;
         }
 
-        // Handle duplicate filenames
         let finalFilename = outputFilename;
         let duplicateCount = 1;
         while (usedFilenames.has(finalFilename)) {
@@ -208,7 +249,7 @@ serve(async (req) => {
         outputPaths.push(outputPath);
     }
 
-    // --- 4. Create and Upload ZIP Archive (85% to 95%) ---
+    // --- 5. Create and Upload ZIP Archive (85% to 95%) ---
     await updateProgress(supabaseAdmin, job.id, 85, 'All presentations generated, creating ZIP archive...');
     
     const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
@@ -245,7 +286,7 @@ serve(async (req) => {
 
     if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
 
-    // --- 5. Finalize Job (95% to 100%) ---
+    // --- 6. Finalize Job (95% to 100%) ---
     await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
     
     await supabaseAdmin
