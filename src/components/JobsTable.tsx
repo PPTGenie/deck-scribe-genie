@@ -206,14 +206,14 @@ export function JobsTable({ jobs }: JobsTableProps) {
                           </DropdownMenuSubTrigger>
                           <DropdownMenuPortal>
                             <DropdownMenuSubContent>
-                              {/* Note: Both options trigger the same zip download for now. */}
+                              {/* PDF download is not yet implemented. */}
                               <DropdownMenuItem onClick={() => handleDownload(job)} disabled={downloadingJobId === job.id}>
-                                {downloadingJobId === job.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                {downloadingJobId === job.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Download .pptx
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleDownload(job)} disabled={downloadingJobId === job.id}>
-                                {downloadingJobId === job.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                Download .pdf
+                              <DropdownMenuItem disabled className="flex justify-between items-center">
+                                <span>Download .pdf</span>
+                                <Badge variant="outline">Soon</Badge>
                               </DropdownMenuItem>
                             </DropdownMenuSubContent>
                           </DropdownMenuPortal>
