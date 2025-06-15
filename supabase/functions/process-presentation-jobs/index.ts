@@ -51,8 +51,6 @@ serve(async (req) => {
 
   console.log(`${logPrefix(job.id)} Claimed job.`);
   
-  // Use a user-impersonated client for storage access to respect RLS if needed,
-  // but for this backend process, admin client is necessary to bypass RLS for file access.
   const storageClient = supabaseAdmin;
 
   try {
@@ -68,13 +66,31 @@ serve(async (req) => {
 
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
-    // The `parse` function from the Deno standard library is synchronous for string inputs
-    // and can automatically use the first row as headers. The previous implementation
-    // was incorrectly treating it as an asynchronous function.
-    const parsedCsv = parse(csvData, { skipFirstRow: true }) as Record<string, string>[];
-    const totalRows = parsedCsv.length;
     
-    console.log(`${logPrefix(job.id)} Downloaded and parsed ${totalRows} rows.`);
+    const allRows = parse(csvData, { skipFirstRow: false }) as string[][];
+
+    if (allRows.length < 2) {
+      throw new Error('CSV file requires a header row and at least one data row.');
+    }
+
+    const headers = allRows[0];
+    const dataRows = allRows.slice(1);
+
+    console.log(`${logPrefix(job.id)} Found headers: [${headers.join(', ')}]`);
+
+    const parsedCsv: Record<string, string>[] = dataRows.map((row, rowIndex) => {
+      if (row.length !== headers.length) {
+        console.warn(`${logPrefix(job.id)} Warning: Row ${rowIndex + 2} has ${row.length} columns, but header has ${headers.length}. Data may be inconsistent.`);
+      }
+      const rowData: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        rowData[header.trim()] = row[index] || '';
+      });
+      return rowData;
+    });
+    
+    const totalRows = parsedCsv.length;
+    console.log(`${logPrefix(job.id)} Successfully parsed ${totalRows} data rows.`);
 
     // --- 3. Process Each Row and Generate Presentations ---
     const outputPaths: string[] = [];
@@ -171,3 +187,4 @@ serve(async (req) => {
     });
   }
 });
+
