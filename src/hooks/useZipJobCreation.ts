@@ -6,12 +6,14 @@ import { toast } from 'sonner';
 import { createZipJob } from '@/services/zipJobCreationService';
 import type { CsvPreview } from '@/types/files';
 
+interface ExtractedFiles {
+  template?: { file: File; name: string };
+  csv?: { file: File; name: string; data: any[] };
+  images: Record<string, File>;
+}
+
 interface useZipJobCreationProps {
-    extractedFiles: {
-        template?: File;
-        csv?: File;
-        images: { [key: string]: File };
-    } | null;
+    extractedFiles: ExtractedFiles | null;
     csvPreview: CsvPreview | null;
     filenameTemplate: string;
     filenameError: string | null;

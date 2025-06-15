@@ -7,12 +7,14 @@ import { withRetry } from '@/lib/retry';
 
 type SetJobProgress = (progress: { value: number; message: string } | null) => void;
 
+interface ExtractedFiles {
+  template?: { file: File; name: string };
+  csv?: { file: File; name: string; data: any[] };
+  images: Record<string, File>;
+}
+
 interface ZipJobCreationParams {
-    extractedFiles: {
-        template?: File;
-        csv?: File;
-        images: { [key: string]: File };
-    };
+    extractedFiles: ExtractedFiles;
     user: User;
     csvPreview: CsvPreview;
     filenameTemplate: string;
@@ -41,7 +43,7 @@ export async function createZipJob({
     await withRetry(async () => {
         const { error } = await supabase.storage
             .from('templates')
-            .upload(templatePath, extractedFiles.template!);
+            .upload(templatePath, extractedFiles.template!.file);
         if (error) throw error;
     }, {
         onRetry: (error, attempt) => {
@@ -78,7 +80,7 @@ export async function createZipJob({
     await withRetry(async () => {
         const { error } = await supabase.storage
             .from('csv_files')
-            .upload(csvPath, extractedFiles.csv!);
+            .upload(csvPath, extractedFiles.csv!.file);
         if (error) throw error;
     }, {
         onRetry: (error, attempt) => {
