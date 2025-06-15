@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
@@ -58,33 +57,69 @@ export function UploadCSVStep({
        return;
     }
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: false,
-      complete: (results) => {
-        if (results.errors.length) {
-          setError(`Error parsing CSV: ${results.errors[0].message}`);
+    // Use a more robust CSV parsing approach that preserves all values as strings
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const csvText = e.target?.result as string;
+      if (!csvText) {
+        setError("Failed to read the CSV file.");
+        return;
+      }
+
+      try {
+        // Manual CSV parsing to ensure all values remain as strings
+        const lines = csvText.trim().split('\n');
+        if (lines.length < 2) {
+          setError("Your CSV file appears to be empty. Please upload a file with a header row and at least one data row.");
           setCsvPreview(null);
           setCsvFile(null);
           return;
         }
 
-        const headers = results.meta.fields;
-        const data = results.data;
+        // Parse header row - remove quotes and trim whitespace
+        const headerLine = lines[0];
+        const headers = headerLine.split(',').map(header => {
+          return header.trim().replace(/^["']|["']$/g, '');
+        });
 
-        if (!headers || headers.length === 0) {
-            setError("Your CSV file appears to be empty. Please upload a file with a header row and at least one data row.");
-            setCsvPreview(null);
-            setCsvFile(null);
-            return;
+        if (headers.length === 0) {
+          setError("Your CSV file appears to be empty. Please upload a file with a header row and at least one data row.");
+          setCsvPreview(null);
+          setCsvFile(null);
+          return;
+        }
+
+        // Parse data rows - ensure all values are preserved as strings
+        const dataRows = lines.slice(1);
+        const data: Record<string, string>[] = [];
+
+        for (let i = 0; i < dataRows.length; i++) {
+          const line = dataRows[i].trim();
+          if (!line) continue; // Skip empty lines
+
+          // Simple CSV parsing that preserves all values as strings
+          const values = line.split(',').map(value => {
+            // Remove surrounding quotes if present, but keep the value as a string
+            return value.trim().replace(/^["']|["']$/g, '');
+          });
+
+          if (values.length !== headers.length) {
+            console.warn(`Warning: Row ${i + 2} has ${values.length} columns, but header has ${headers.length}. Data may be inconsistent.`);
+          }
+
+          const rowData: Record<string, string> = {};
+          headers.forEach((header, index) => {
+            // Ensure all values are explicitly treated as strings - no number conversion
+            rowData[header] = String(values[index] || '');
+          });
+          data.push(rowData);
         }
 
         if (data.length === 0) {
-            setError("Your CSV file only contains a header. Please add at least one data row below the header.");
-            setCsvPreview(null);
-            setCsvFile(null);
-            return;
+          setError("Your CSV file only contains a header. Please add at least one data row below the header.");
+          setCsvPreview(null);
+          setCsvFile(null);
+          return;
         }
 
         // Validate image filenames if we have image columns
@@ -92,19 +127,27 @@ export function UploadCSVStep({
         let validationIssues: any[] = [];
         
         if (imageColumns.length > 0) {
-          validationIssues = validateAllImageFilenames(data as Record<string, string>[], imageColumns);
+          validationIssues = validateAllImageFilenames(data, imageColumns);
           setImageValidationIssues(validationIssues);
         }
 
         setCsvFile(file);
-        setCsvPreview({ headers, data: data as Record<string, string>[] });
-      },
-      error: (err: any) => {
+        setCsvPreview({ headers, data });
+
+      } catch (err: any) {
         setError(`An unexpected error occurred while parsing: ${err.message}`);
         setCsvPreview(null);
         setCsvFile(null);
       }
-    });
+    };
+
+    reader.onerror = () => {
+      setError("Failed to read the CSV file. Please try again.");
+      setCsvPreview(null);
+      setCsvFile(null);
+    };
+
+    reader.readAsText(file);
   };
 
   const removeFile = () => {
