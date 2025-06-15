@@ -9,7 +9,7 @@ interface TemplateVariablesDisplayProps {
 
 export function TemplateVariablesDisplay({ variables }: TemplateVariablesDisplayProps) {
   return (
-    <div className="rounded-md border p-4 space-y-3 animate-in fade-in">
+    <div className="rounded-md border bg-secondary p-4 space-y-3 animate-in fade-in">
         <h3 className="font-semibold flex items-center gap-2">
             <Lightbulb className="text-yellow-500" />
             Found {variables.length} variable{variables.length !== 1 && 's'} in your template
