@@ -13,6 +13,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const renderTemplate = (template: string, data: Record<string, string>): string => {
+  if (!template) return "";
+  return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => data[key.trim()] || "");
+};
+
+const sanitizeFilename = (filename: string): string => {
+  return filename.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 200);
+};
+
+
 serve(async (req) => {
   console.log(`process-presentation-jobs function invoked at: ${new Date().toISOString()}`);
   if (req.method === 'OPTIONS') {
@@ -94,6 +104,8 @@ serve(async (req) => {
 
     // --- 3. Process Each Row and Generate Presentations ---
     const outputPaths: string[] = [];
+    const usedFilenames = new Set<string>();
+
     for (const [index, row] of parsedCsv.entries()) {
         const zip = new PizZip(templateData);
         const doc = new Docxtemplater(zip, {
@@ -106,8 +118,30 @@ serve(async (req) => {
         doc.render(row);
         
         const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
-        const outputFilename = `row_${index + 1}.pptx`;
-        const outputPath = `${job.templates.user_id}/${job.id}/${outputFilename}`;
+        
+        // --- Generate Filename ---
+        let outputFilename;
+        if (job.filename_template) {
+          const renderedName = renderTemplate(job.filename_template, row);
+          outputFilename = sanitizeFilename(renderedName) + '.pptx';
+        }
+
+        // Fallback if template is missing, empty, or only contains invalid characters
+        if (!outputFilename || outputFilename === '.pptx') {
+          outputFilename = `row_${index + 1}.pptx`;
+        }
+
+        // Handle duplicate filenames
+        let finalFilename = outputFilename;
+        let duplicateCount = 1;
+        while (usedFilenames.has(finalFilename)) {
+          const nameWithoutExt = outputFilename.replace(/\.pptx$/, '');
+          finalFilename = `${nameWithoutExt}_${duplicateCount}.pptx`;
+          duplicateCount++;
+        }
+        usedFilenames.add(finalFilename);
+        
+        const outputPath = `${job.templates.user_id}/${job.id}/${finalFilename}`;
         
         const { error: uploadError } = await storageClient.storage
             .from('outputs')
@@ -187,4 +221,3 @@ serve(async (req) => {
     });
   }
 });
-

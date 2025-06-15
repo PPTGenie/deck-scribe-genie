@@ -3,14 +3,25 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, FileUp, CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { FilenameTemplateForm } from './FilenameTemplateForm';
 
 interface ConfirmStepProps {
   templateFile: File;
   csvFile: File;
   csvPreview: { headers: string[]; data: Record<string, string>[] };
+  filenameTemplate: string;
+  setFilenameTemplate: (template: string) => void;
+  setFilenameError: (error: string | null) => void;
 }
 
-export function ConfirmStep({ templateFile, csvFile, csvPreview }: ConfirmStepProps) {
+export function ConfirmStep({
+  templateFile,
+  csvFile,
+  csvPreview,
+  filenameTemplate,
+  setFilenameTemplate,
+  setFilenameError,
+}: ConfirmStepProps) {
   const getFileSize = (size: number) => {
     if (size / 1024 / 1024 < 0.01) {
       return `${Math.ceil(size / 1024)} KB`;
@@ -24,7 +35,7 @@ export function ConfirmStep({ templateFile, csvFile, csvPreview }: ConfirmStepPr
         <CheckCircle2 className="h-4 w-4" />
         <AlertTitle>Ready to Go!</AlertTitle>
         <AlertDescription>
-          Please review the files below. Once you click "Start Job", the generation process will be queued.
+          Please review the files and configure the output filenames below. Once you click "Start Job", the generation process will be queued.
         </AlertDescription>
       </Alert>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -57,6 +68,13 @@ export function ConfirmStep({ templateFile, csvFile, csvPreview }: ConfirmStepPr
           </CardContent>
         </Card>
       </div>
+
+      <FilenameTemplateForm
+        csvPreview={csvPreview}
+        filenameTemplate={filenameTemplate}
+        setFilenameTemplate={setFilenameTemplate}
+        setFilenameError={setFilenameError}
+      />
     </div>
   );
 }

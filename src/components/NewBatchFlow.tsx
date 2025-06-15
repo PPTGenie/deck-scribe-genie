@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Stepper } from '@/components/ui/stepper';
@@ -19,15 +20,17 @@ const steps = [
 ];
 
 export function NewBatchFlow() {
-  const [currentStep, setCurrentStep] = useState(0); // Start at step 1
+  const [currentStep, setCurrentStep] = useState(0);
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null); // No default error
+  const [error, setError] = useState<string | null>(null);
   const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
   const [missingVariables, setMissingVariables] = useState<string[]>([]);
   const [isStartingJob, setIsStartingJob] = useState(false);
+  const [filenameTemplate, setFilenameTemplate] = useState<string>('');
+  const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -52,6 +55,15 @@ export function NewBatchFlow() {
     }
   }, [extractedVariables, csvPreview]);
 
+  // Set default filename template when CSV preview is available
+  React.useEffect(() => {
+    if (csvPreview?.headers.length && !filenameTemplate) {
+      const firstHeader = csvPreview.headers[0];
+      setFilenameTemplate(`{{${firstHeader}}}`);
+    }
+  }, [csvPreview, filenameTemplate]);
+
+
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -74,8 +86,8 @@ export function NewBatchFlow() {
   }
 
   const handleStartJob = async () => {
-    if (!templateFile || !csvFile || !user || !csvPreview) {
-      toast.error("Missing required files or user session. Please start over.");
+    if (!templateFile || !csvFile || !user || !csvPreview || !filenameTemplate || !!filenameError) {
+      toast.error("Missing required files, user session, or invalid filename template. Please check your inputs.");
       return;
     }
 
@@ -133,7 +145,12 @@ export function NewBatchFlow() {
       // 5. Insert Job record
       const { error: jobInsertError } = await supabase
         .from('jobs')
-        .insert({ user_id: user.id, template_id: templateData.id, csv_id: csvData.id });
+        .insert({
+          user_id: user.id,
+          template_id: templateData.id,
+          csv_id: csvData.id,
+          filename_template: filenameTemplate,
+        });
 
       if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
 
@@ -157,7 +174,7 @@ export function NewBatchFlow() {
   return (
     <div className="flex flex-col gap-4">
       <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
-      <Card className={cn("transition-all", error && "border-destructive ring-1 ring-destructive/50")}>
+      <Card className={cn("transition-all", (error || (currentStep === 2 && !!filenameError)) && "border-destructive ring-1 ring-destructive/50")}>
         <CardHeader>
           <CardTitle>{steps[currentStep].name}</CardTitle>
           <CardDescription>{steps[currentStep].description}</CardDescription>
@@ -191,7 +208,10 @@ export function NewBatchFlow() {
             <ConfirmStep 
               templateFile={templateFile} 
               csvFile={csvFile} 
-              csvPreview={csvPreview} 
+              csvPreview={csvPreview}
+              filenameTemplate={filenameTemplate}
+              setFilenameTemplate={setFilenameTemplate}
+              setFilenameError={setFilenameError}
             />
           )}
         </CardContent>
@@ -209,7 +229,7 @@ export function NewBatchFlow() {
             Next
           </Button>
         ) : (
-          <Button onClick={handleStartJob} disabled={isStartingJob}>
+          <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
             {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Start Job
           </Button>

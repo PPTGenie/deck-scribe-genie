@@ -49,6 +49,7 @@ export type Database = {
           created_at: string | null
           csv_id: string
           error_msg: string | null
+          filename_template: string | null
           finished_at: string | null
           id: string
           output_zip: string | null
@@ -61,6 +62,7 @@ export type Database = {
           created_at?: string | null
           csv_id: string
           error_msg?: string | null
+          filename_template?: string | null
           finished_at?: string | null
           id?: string
           output_zip?: string | null
@@ -73,6 +75,7 @@ export type Database = {
           created_at?: string | null
           csv_id?: string
           error_msg?: string | null
+          filename_template?: string | null
           finished_at?: string | null
           id?: string
           output_zip?: string | null
