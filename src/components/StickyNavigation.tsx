@@ -29,6 +29,7 @@ export function StickyNavigation({
     filenameError,
 }: StickyNavigationProps) {
     const { open: sidebarOpen, isMobile } = useSidebar();
+    const showProgress = isStartingJob && jobProgress;
 
     return (
         <div 
@@ -36,32 +37,36 @@ export function StickyNavigation({
             style={{ left: isMobile ? 0 : (sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)') }}
         >
             <div className="container mx-auto flex h-20 max-w-4xl items-center justify-between px-4 sm:px-6 lg:px-8">
-                <div> {/* Left container */}
-                    {currentStep > 0 ? (
-                        <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
-                            Back
-                        </Button>
-                    ) : <div />}
-                </div>
+                {showProgress ? (
+                    <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
+                ) : (
+                    <>
+                        <div> {/* Left container */}
+                            {currentStep > 0 ? (
+                                <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
+                                    Back
+                                </Button>
+                            ) : <div />}
+                        </div>
 
-                <div className="flex items-center gap-4"> {/* Right container */}
-                    <span className="text-sm text-muted-foreground hidden sm:inline">
-                        Step {currentStep + 1} of {totalSteps}
-                    </span>
+                        <div className="flex items-center gap-4"> {/* Right container */}
+                            <span className="text-sm text-muted-foreground hidden sm:inline">
+                                Step {currentStep + 1} of {totalSteps}
+                            </span>
 
-                    {currentStep < totalSteps - 1 ? (
-                        <Button onClick={goToNextStep} disabled={isNextDisabled}>
-                            Next
-                        </Button>
-                    ) : isStartingJob && jobProgress ? (
-                        <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
-                    ) : (
-                        <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
-                            {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Start Job
-                        </Button>
-                    )}
-                </div>
+                            {currentStep < totalSteps - 1 ? (
+                                <Button onClick={goToNextStep} disabled={isNextDisabled}>
+                                    Next
+                                </Button>
+                            ) : (
+                                <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
+                                    {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Start Job
+                                </Button>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
