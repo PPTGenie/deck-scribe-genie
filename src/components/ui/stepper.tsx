@@ -20,7 +20,7 @@ export function Stepper({ steps, currentStep }: StepperProps) {
           <li key={step.name} className="md:flex-1">
             {stepIdx < currentStep ? (
               // Completed Step
-              <div className="group flex w-full items-center gap-x-3 border-l-4 border-primary py-2 transition-colors md:border-l-0 md:border-t-4 md:items-start md:pb-0 md:pt-4 animate-in fade-in duration-200">
+              <div className="group flex w-full items-center gap-x-3 border-l-4 border-primary py-2 transition-colors md:border-l-0 md:border-t-4 md:pb-0 md:pt-4 animate-in fade-in duration-200">
                 <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary">
                   <Check className="h-4 w-4 text-primary-foreground" />
                 </div>
