@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
+import { ImageValidationErrors } from './ImageValidationErrors';
+import { validateAllImageFilenames } from '@/lib/imageValidation';
 import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -33,15 +35,16 @@ export function UploadCSVStep({
   setCsvPreview,
   missingVariables,
 }: UploadCSVStepProps) {
+  const [imageValidationIssues, setImageValidationIssues] = React.useState<any[]>([]);
 
   const handleFileChange = (files: File[]) => {
     setError(null);
     setCsvPreview(null);
     setCsvFile(null);
+    setImageValidationIssues([]);
 
     const file = files[0];
     if (!file) {
-      // This case can be triggered from FileUpload component on rejection
       setError("Invalid file. We only accept .csv files under 5MB.");
       return;
     }
@@ -58,7 +61,7 @@ export function UploadCSVStep({
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: false, // Prevents automatic type conversion, treating all values as strings.
+      dynamicTyping: false,
       complete: (results) => {
         if (results.errors.length) {
           setError(`Error parsing CSV: ${results.errors[0].message}`);
@@ -84,6 +87,15 @@ export function UploadCSVStep({
             return;
         }
 
+        // Validate image filenames if we have image columns
+        const imageColumns = extractedVariables?.images || [];
+        let validationIssues: any[] = [];
+        
+        if (imageColumns.length > 0) {
+          validationIssues = validateAllImageFilenames(data as Record<string, string>[], imageColumns);
+          setImageValidationIssues(validationIssues);
+        }
+
         setCsvFile(file);
         setCsvPreview({ headers, data: data as Record<string, string>[] });
       },
@@ -99,20 +111,61 @@ export function UploadCSVStep({
     setCsvFile(null);
     setError(null);
     setCsvPreview(null);
+    setImageValidationIssues([]);
   };
+
+  const handleRetryUpload = () => {
+    removeFile();
+  };
+
+  const handleFixedCSVDownload = (csvContent: string) => {
+    // When user downloads corrected CSV, we could optionally auto-process it
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'corrected_data.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const hasBlockingErrors = missingVariables.length > 0 || imageValidationIssues.length > 0;
 
   return (
     <div className="space-y-6">
       <CSVFormattingInfo extractedVariables={extractedVariables} />
 
       {csvFile && csvPreview ? (
-        <CSVFileDisplay
+        <div className="space-y-4">
+          <CSVFileDisplay
             csvFile={csvFile}
             csvPreview={csvPreview}
             removeFile={removeFile}
             missingVariables={missingVariables}
             extractedVariables={extractedVariables}
-        />
+          />
+          
+          {/* Image validation results */}
+          {extractedVariables?.images && extractedVariables.images.length > 0 && (
+            <ImageValidationErrors
+              issues={imageValidationIssues}
+              csvData={csvPreview.data}
+              imageColumns={extractedVariables.images}
+              onFixedCSVDownload={handleFixedCSVDownload}
+              onRetryUpload={handleRetryUpload}
+            />
+          )}
+
+          {hasBlockingErrors && (
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                Please resolve the issues above before proceeding to the next step.
+              </p>
+            </div>
+          )}
+        </div>
       ) : (
         <div>
           <FileUpload

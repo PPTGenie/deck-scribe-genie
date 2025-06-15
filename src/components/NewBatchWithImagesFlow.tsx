@@ -45,8 +45,19 @@ export function NewBatchWithImagesFlow() {
     }
     
     if (currentStep === 1) {
-      // CSV step - check if CSV is uploaded and no missing variables
-      return !state.csvFile || !!state.error || !state.csvPreview || state.missingVariables.length > 0;
+      // CSV step - check if CSV is uploaded, no missing variables, and no image validation errors
+      const hasImageValidationErrors = hasImageVariables && state.csvPreview && 
+        state.extractedVariables?.images.some(imgCol => 
+          state.csvPreview?.data.some(row => {
+            const filename = row[imgCol];
+            if (!filename) return false;
+            const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+            return !['.png', '.jpg', '.jpeg', '.svg'].includes(ext);
+          })
+        );
+      
+      return !state.csvFile || !!state.error || !state.csvPreview || 
+             state.missingVariables.length > 0 || hasImageValidationErrors;
     }
     
     if (hasImageVariables && currentStep === 2) {
