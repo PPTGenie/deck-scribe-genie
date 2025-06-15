@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { ConfirmStep } from './ConfirmStep';
 import { JobCreationProgress } from './JobCreationProgress';
+import { useSidebar } from '@/components/ui/sidebar';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -36,6 +37,7 @@ export function NewBatchFlow() {
 
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { open: sidebarOpen, isMobile } = useSidebar();
 
   // When template file is cleared, also clear extracted variables and csv data.
   React.useEffect(() => {
@@ -227,7 +229,10 @@ export function NewBatchFlow() {
         </Card>
       </div>
       
-      <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-background/95 backdrop-blur-sm">
+      <div 
+        className="fixed bottom-0 right-0 z-10 border-t bg-background/95 backdrop-blur-sm transition-[left] duration-200 ease-linear"
+        style={{ left: isMobile ? 0 : (sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)') }}
+      >
         <div className="container mx-auto flex h-20 max-w-4xl items-center justify-between px-4 sm:px-6 lg:px-8">
             {currentStep > 0 ? (
               <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
