@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Stepper } from '@/components/ui/stepper';
@@ -181,68 +182,72 @@ export function NewBatchFlow() {
   return (
     <div className="flex flex-col gap-4">
       <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
-      <Card className={cn("transition-all", (error || (currentStep === 2 && !!filenameError)) && "border-destructive ring-1 ring-destructive/50")}>
-        <CardHeader>
-          <CardTitle>{steps[currentStep].name}</CardTitle>
-          <CardDescription>{steps[currentStep].description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {currentStep === 0 && (
-            <UploadTemplateStep
-              templateFile={templateFile}
-              setTemplateFile={setTemplateFile}
-              error={error}
-              setError={setError}
-              extractedVariables={extractedVariables}
-              setExtractedVariables={setExtractedVariables}
-              isExtracting={isExtracting}
-              setIsExtracting={setIsExtracting}
-            />
-          )}
-          {currentStep === 1 && (
-            <UploadCSVStep
-              csvFile={csvFile}
-              setCsvFile={setCsvFile}
-              error={error}
-              setError={setError}
-              extractedVariables={extractedVariables}
-              csvPreview={csvPreview}
-              setCsvPreview={setCsvPreview}
-              missingVariables={missingVariables}
-            />
-          )}
-          {currentStep === 2 && templateFile && csvFile && csvPreview && (
-            <ConfirmStep 
-              templateFile={templateFile} 
-              csvFile={csvFile} 
-              csvPreview={csvPreview}
-              filenameTemplate={filenameTemplate}
-              setFilenameTemplate={setFilenameTemplate}
-              setFilenameError={setFilenameError}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <div className="pb-24"> {/* Added padding to bottom to avoid content being hidden by sticky footer */}
+        <Card className={cn("transition-all", (error || (currentStep === 2 && !!filenameError)) && "border-destructive ring-1 ring-destructive/50")}>
+          <CardHeader>
+            <CardTitle>{steps[currentStep].name}</CardTitle>
+            <CardDescription>{steps[currentStep].description}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {currentStep === 0 && (
+              <UploadTemplateStep
+                templateFile={templateFile}
+                setTemplateFile={setTemplateFile}
+                error={error}
+                setError={setError}
+                extractedVariables={extractedVariables}
+                setExtractedVariables={setExtractedVariables}
+                isExtracting={isExtracting}
+                setIsExtracting={setIsExtracting}
+              />
+            )}
+            {currentStep === 1 && (
+              <UploadCSVStep
+                csvFile={csvFile}
+                setCsvFile={setCsvFile}
+                error={error}
+                setError={setError}
+                extractedVariables={extractedVariables}
+                csvPreview={csvPreview}
+                setCsvPreview={setCsvPreview}
+                missingVariables={missingVariables}
+              />
+            )}
+            {currentStep === 2 && templateFile && csvFile && csvPreview && (
+              <ConfirmStep 
+                templateFile={templateFile} 
+                csvFile={csvFile} 
+                csvPreview={csvPreview}
+                filenameTemplate={filenameTemplate}
+                setFilenameTemplate={setFilenameTemplate}
+                setFilenameError={setFilenameError}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
       
-      <div className="flex w-full items-center justify-between pt-4 min-h-[40px]">
-        {currentStep > 0 ? (
-          <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
-            Back
-          </Button>
-        ) : <div />}
+      <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-background/95 backdrop-blur-sm">
+        <div className="container mx-auto flex h-20 max-w-4xl items-center justify-between px-4 sm:px-6 lg:px-8">
+            {currentStep > 0 ? (
+              <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
+                Back
+              </Button>
+            ) : <div />}
 
-        {currentStep < steps.length - 1 ? (
-          <Button onClick={goToNextStep} disabled={isNextDisabled}>
-            Next
-          </Button>
-        ) : isStartingJob && jobProgress ? (
-          <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
-        ) : (
-          <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
-            {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Start Job
-          </Button>
-        )}
+            {currentStep < steps.length - 1 ? (
+              <Button onClick={goToNextStep} disabled={isNextDisabled}>
+                Next
+              </Button>
+            ) : isStartingJob && jobProgress ? (
+              <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
+            ) : (
+              <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
+                {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Start Job
+              </Button>
+            )}
+        </div>
       </div>
 
     </div>

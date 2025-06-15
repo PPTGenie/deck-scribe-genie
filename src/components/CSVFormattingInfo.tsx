@@ -1,10 +1,15 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info, Download } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface CSVFormattingInfoProps {
   extractedVariables: string[] | null;
@@ -37,53 +42,60 @@ export function CSVFormattingInfo({ extractedVariables }: CSVFormattingInfoProps
     };
 
     return (
-        <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
-            <Info className="h-4 w-4 text-blue-500" />
-            <AlertTitle className="text-blue-800 dark:text-blue-300">
-                How to Format Your CSV Data
-            </AlertTitle>
-            <AlertDescription className="space-y-3 text-blue-700 dark:text-blue-300/90">
-                <p>
-                    Your CSV file provides the data to fill in the placeholders from your template. The easiest way to get started is to download our generated template.
-                </p>
-                <div className="rounded-md bg-background/50 p-4">
-                    <h4 className="font-semibold mb-2">Your template requires {extractedVariables?.length || '...'} column(s):</h4>
-                    {hasVariables ? (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {extractedVariables.map(v => <code key={v} className="text-xs font-semibold p-1 bg-blue-100 dark:bg-blue-900 rounded-sm">{v}</code>)}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-muted-foreground italic mb-4">Upload a template in Step 1 to see required columns.</p>
-                    )}
-
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <div className="inline-block">
-                                    <Button
-                                        onClick={handleDownloadTemplate}
-                                        disabled={!hasVariables}
-                                    >
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Download CSV Template
-                                    </Button>
+        <Accordion type="single" collapsible className="w-full border-b">
+            <AccordionItem value="item-1" className="border-none">
+                <AccordionTrigger className="text-base hover:no-underline">
+                    <div className="flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        <span>How to format your CSV file</span>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                    <div className="space-y-3 pt-2 text-sm text-muted-foreground">
+                        <p>
+                            Your CSV file provides the data to fill in the placeholders from your template. The easiest way to get started is to download our generated template.
+                        </p>
+                        <div className="rounded-md border bg-background p-4">
+                            <h4 className="font-semibold mb-2 text-foreground">Your template requires {extractedVariables?.length || '...'} column(s):</h4>
+                            {hasVariables ? (
+                                <div className="flex flex-wrap gap-2 mb-4">
+                                    {extractedVariables.map(v => <code key={v} className="text-xs font-semibold p-1 bg-secondary text-secondary-foreground rounded-sm">{v}</code>)}
                                 </div>
-                            </TooltipTrigger>
-                            {!hasVariables && (
-                                <TooltipContent>
-                                    <p>First, upload a template in Step 1.</p>
-                                </TooltipContent>
+                            ) : (
+                                <p className="text-sm text-muted-foreground italic mb-4">Upload a template in Step 1 to see required columns.</p>
                             )}
-                        </Tooltip>
-                    </TooltipProvider>
-                    <p className="text-xs text-muted-foreground mt-2">
-                        This will download a <code>template.csv</code> file with the correct headers and a sample row.
-                    </p>
-                </div>
-                <p>
-                    Each row in your CSV file will be used to generate one unique presentation.
-                </p>
-            </AlertDescription>
-        </Alert>
+
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="inline-block">
+                                            <Button
+                                                onClick={handleDownloadTemplate}
+                                                disabled={!hasVariables}
+                                                variant="secondary"
+                                            >
+                                                <Download className="mr-2 h-4 w-4" />
+                                                Download CSV Template
+                                            </Button>
+                                        </div>
+                                    </TooltipTrigger>
+                                    {!hasVariables && (
+                                        <TooltipContent>
+                                            <p>First, upload a template in Step 1.</p>
+                                        </TooltipContent>
+                                    )}
+                                </Tooltip>
+                            </TooltipProvider>
+                            <p className="text-xs text-muted-foreground mt-2">
+                                This will download a <code>template.csv</code> file with the correct headers and a sample row.
+                            </p>
+                        </div>
+                        <p>
+                            Each row in your CSV file will be used to generate one unique presentation.
+                        </p>
+                    </div>
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>
     );
 }
