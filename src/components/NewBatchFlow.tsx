@@ -137,6 +137,13 @@ export function NewBatchFlow() {
 
       if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
 
+      // 6. Trigger edge function to start processing immediately.
+      // We don't await this so it doesn't block the UI. If it fails,
+      // the scheduled task will pick up the job later.
+      supabase.functions.invoke('process-presentation-jobs').catch(err => {
+        console.error("Error triggering job processing immediately:", err);
+      });
+
       toast.success("Job successfully queued! Redirecting to dashboard...", { id: jobToast, duration: 3000 });
       setTimeout(() => navigate('/dashboard'), 2000);
 

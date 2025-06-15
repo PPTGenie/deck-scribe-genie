@@ -1,16 +1,17 @@
-
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { JobsTable } from '@/components/JobsTable';
 import { ContentContainer } from '@/components/ui/ContentContainer';
+import { Job } from '@/types/jobs';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ['jobs', user?.id],
@@ -59,17 +60,39 @@ const Dashboard = () => {
       }));
     },
     enabled: !!user,
-    refetchInterval: (query) => {
-      const data = query.state.data as { status: string }[] | undefined;
-      if (!data) {
-        return false;
-      }
-      const hasPendingJobs = data.some(
-        (job) => job.status === 'queued' || job.status === 'processing'
-      );
-      return hasPendingJobs ? 5000 : false;
-    },
   });
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('jobs-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'jobs',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const updatedJobData = payload.new as { [key: string]: any };
+          queryClient.setQueryData(['jobs', user?.id], (oldData: Job[] | undefined) => {
+            if (!oldData) return [];
+            // Find the job in the cache and update it with the new data
+            return oldData.map((job) =>
+              job.id === updatedJobData.id ? { ...job, ...updatedJobData } : job
+            );
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on component unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   if (isLoading) {
     return (
