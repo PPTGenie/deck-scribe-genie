@@ -1,10 +1,10 @@
 
 import React from 'react';
-import { X, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CSVPreviewTable } from './CSVPreviewTable';
 import { DismissibleAlert } from './DismissibleAlert';
+import { FileInfoDisplay } from './FileInfoDisplay';
 
 interface CSVFileDisplayProps {
   csvFile: File;
@@ -21,28 +21,26 @@ export function CSVFileDisplay({
   missingVariables,
   extractedVariables,
 }: CSVFileDisplayProps) {
+  const hasMissingVariables = missingVariables.length > 0;
+
   return (
     <div className="w-full animate-in fade-in duration-300 space-y-4">
-      <DismissibleAlert
-        storageKey="csv-ready-alert-dismissed"
-        className="border-green-500 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-950 dark:text-green-200 [&>svg]:text-green-500"
-      >
-        <CheckCircle2 className="h-4 w-4" />
-        <AlertTitle>CSV Ready</AlertTitle>
-        <AlertDescription className="flex items-center justify-between">
-          <span>
-            {csvFile.name} (
-            {(csvFile.size / 1024 / 1024) < 0.01
-              ? `${Math.ceil(csvFile.size / 1024)} KB`
-              : `${(csvFile.size / 1024 / 1024).toFixed(2)} MB`}
-            )
-          </span>
-          <Button variant="ghost" size="icon" onClick={removeFile}>
-            <X className="h-4 w-4" />
-          </Button>
-        </AlertDescription>
-      </DismissibleAlert>
-      {missingVariables.length > 0 && (
+      <FileInfoDisplay file={csvFile} onRemove={removeFile} />
+
+      {!hasMissingVariables && (
+        <DismissibleAlert
+          storageKey="csv-ready-alert-dismissed"
+          className="border-green-500 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-950 dark:text-green-200 [&>svg]:text-green-500"
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          <AlertTitle>CSV Ready</AlertTitle>
+          <AlertDescription>
+            Your CSV file is ready. All required columns are present.
+          </AlertDescription>
+        </DismissibleAlert>
+      )}
+
+      {hasMissingVariables && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Missing CSV Columns</AlertTitle>
