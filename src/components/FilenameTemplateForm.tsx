@@ -3,7 +3,7 @@ import { Label } from './ui/label';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 
 interface FilenameTemplateFormProps {
@@ -134,15 +134,7 @@ export function FilenameTemplateForm({ csvPreview, filenameTemplate, setFilename
                 Your template must include at least one placeholder like `{"{{ColumnName}}"}`.
                 </AlertDescription>
             </Alert>
-        ) : (
-          <Alert>
-            <CheckCircle className="h-4 w-4" />
-            <AlertTitle>Template is valid!</AlertTitle>
-            <AlertDescription>
-              Your filenames will be generated based on this template.
-            </AlertDescription>
-          </Alert>
-        )}
+        ) : null}
 
         <div>
           <Label>Filename Preview</Label>
