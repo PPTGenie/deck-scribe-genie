@@ -1,24 +1,14 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+
+import React from 'react';
 import { Stepper } from '@/components/ui/stepper';
-import { UploadTemplateStep } from '@/components/UploadTemplateStep';
-import { UploadCSVStep } from '@/components/UploadCSVStep';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from './ui/button';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
-import { ConfirmStep } from './ConfirmStep';
-import { JobCreationProgress } from './JobCreationProgress';
-import { useSidebar } from '@/components/ui/sidebar';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useNewBatchState } from '@/hooks/useNewBatchState';
+import { useStepNavigation } from '@/hooks/useStepNavigation';
+import { useFirstTimeUser } from '@/hooks/useFirstTimeUser';
+import { useJobCreation } from '@/hooks/useJobCreation';
+import { isNextStepDisabled } from '@/lib/stepValidation';
+import { StepCard } from './StepCard';
+import { StepContent } from './StepContent';
+import { StickyNavigation } from './StickyNavigation';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -27,273 +17,58 @@ const steps = [
 ];
 
 export function NewBatchFlow() {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [templateFile, setTemplateFile] = useState<File | null>(null);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
-  const [missingVariables, setMissingVariables] = useState<string[]>([]);
-  const [isStartingJob, setIsStartingJob] = useState(false);
-  const [jobProgress, setJobProgress] = useState<{ value: number; message: string } | null>(null);
-  const [filenameTemplate, setFilenameTemplate] = useState<string>('');
-  const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
-  const [showNextButtonTooltip, setShowNextButtonTooltip] = useState(false);
-
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const { open: sidebarOpen, isMobile } = useSidebar();
-
-  React.useEffect(() => {
-    // Show tooltip for first-time users to guide them.
-    const hasSeenTooltip = localStorage.getItem('hasSeenNextButtonTooltip_v1');
-    if (!hasSeenTooltip) {
-      setShowNextButtonTooltip(true);
-    }
-  }, []);
-
-  // When template file is cleared, also clear extracted variables and csv data.
-  React.useEffect(() => {
-    if (!templateFile) {
-        setExtractedVariables(null);
-        setCsvFile(null);
-        setCsvPreview(null);
-        setMissingVariables([]);
-    }
-  }, [templateFile]);
-  
-  // Recalculate missing variables when template variables or CSV headers change
-  React.useEffect(() => {
-    if (extractedVariables && csvPreview?.headers) {
-      const missing = extractedVariables.filter(v => !csvPreview.headers.includes(v));
-      setMissingVariables(missing);
-    } else {
-      setMissingVariables([]);
-    }
-  }, [extractedVariables, csvPreview]);
-
-  // Set default filename template when CSV preview is available
-  React.useEffect(() => {
-    if (csvPreview?.headers.length && !filenameTemplate) {
-      const firstHeader = csvPreview.headers[0];
-      setFilenameTemplate(`{{${firstHeader}}}`);
-    }
-  }, [csvPreview, filenameTemplate]);
-
-
-  const goToNextStep = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-      setError(null);
-    }
-  };
+  const state = useNewBatchState();
+  const { currentStep, goToNextStep, goToPrevStep } = useStepNavigation(steps.length, state.setError);
+  const { showNextButtonTooltip, markTooltipAsSeen } = useFirstTimeUser();
+  const { isStartingJob, jobProgress, handleStartJob } = useJobCreation({
+    templateFile: state.templateFile,
+    csvFile: state.csvFile,
+    csvPreview: state.csvPreview,
+    filenameTemplate: state.filenameTemplate,
+    filenameError: state.filenameError,
+  });
 
   const handleNextWithTooltip = () => {
-    if (showNextButtonTooltip) {
-      localStorage.setItem('hasSeenNextButtonTooltip_v1', 'true');
-      setShowNextButtonTooltip(false);
-    }
+    markTooltipAsSeen();
     goToNextStep();
   };
 
-  const goToPrevStep = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-      setError(null);
-    }
-  };
+  const isNextDisabled = isNextStepDisabled({
+    currentStep,
+    templateFile: state.templateFile,
+    error: state.error,
+    isExtracting: state.isExtracting,
+    csvFile: state.csvFile,
+    csvPreview: state.csvPreview,
+    missingVariables: state.missingVariables,
+  });
 
-  let isNextDisabled = false;
-  if (currentStep === 0) {
-    isNextDisabled = !templateFile || !!error || isExtracting;
-  } else if (currentStep === 1) {
-    isNextDisabled = !csvFile || !!error || !csvPreview || missingVariables.length > 0;
-  }
-
-  const handleStartJob = async () => {
-    if (!templateFile || !csvFile || !user || !csvPreview || !filenameTemplate || !!filenameError) {
-      toast.error("Missing required files, user session, or invalid filename template. Please check your inputs.");
-      return;
-    }
-
-    setIsStartingJob(true);
-    setJobProgress({ value: 0, message: 'Initiating job...' });
-    const jobToast = toast.loading("Queuing your batch job...");
-
-    try {
-      // 1. Upload Template
-      setJobProgress({ value: 10, message: `Uploading template: ${templateFile.name}` });
-      const templateExt = templateFile.name.split('.').pop() || 'pptx';
-      const templateFileName = `${crypto.randomUUID()}.${templateExt}`;
-      const templatePath = `${user.id}/${templateFileName}`;
-      
-      const { error: templateUploadError } = await supabase.storage
-        .from('templates')
-        .upload(templatePath, templateFile);
-
-      if (templateUploadError) throw new Error(`Template upload failed: ${templateUploadError.message}`);
-
-      // 2. Insert Template record
-      setJobProgress({ value: 25, message: 'Saving template record...' });
-      const { data: templateData, error: templateInsertError } = await supabase
-        .from('templates')
-        .insert({ user_id: user.id, filename: templateFile.name, storage_path: templatePath })
-        .select('id')
-        .single();
-
-      if (templateInsertError) throw new Error(`Failed to save template record: ${templateInsertError.message}`);
-      if (!templateData) throw new Error("Could not retrieve template ID after insert.");
-
-      // 3. Upload CSV
-      setJobProgress({ value: 45, message: `Uploading data file: ${csvFile.name}` });
-      const csvExt = csvFile.name.split('.').pop() || 'csv';
-      const csvFileName = `${crypto.randomUUID()}.${csvExt}`;
-      const csvPath = `${user.id}/${csvFileName}`;
-      
-      const { error: csvUploadError } = await supabase.storage
-        .from('csv_files')
-        .upload(csvPath, csvFile);
-
-      if (csvUploadError) throw new Error(`CSV upload failed: ${csvUploadError.message}`);
-
-      // 4. Insert CSV record
-      setJobProgress({ value: 65, message: 'Saving data record...' });
-      const { data: csvData, error: csvInsertError } = await supabase
-        .from('csv_uploads')
-        .insert({
-          user_id: user.id,
-          template_id: templateData.id,
-          rows_count: csvPreview.data.length,
-          storage_path: csvPath,
-        })
-        .select('id')
-        .single();
-
-      if (csvInsertError) throw new Error(`Failed to save CSV record: ${csvInsertError.message}`);
-      if (!csvData) throw new Error("Could not retrieve CSV upload ID after insert.");
-
-      // 5. Insert Job record
-      setJobProgress({ value: 85, message: 'Creating job...' });
-      const { error: jobInsertError } = await supabase
-        .from('jobs')
-        .insert({
-          user_id: user.id,
-          template_id: templateData.id,
-          csv_id: csvData.id,
-          filename_template: filenameTemplate,
-        });
-
-      if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
-
-      // 6. Trigger edge function to start processing immediately.
-      setJobProgress({ value: 95, message: 'Triggering processing...' });
-      supabase.functions.invoke('process-presentation-jobs').catch(err => {
-        console.error("Error triggering job processing immediately:", err);
-      });
-      
-      setJobProgress({ value: 100, message: 'Job queued successfully!' });
-      toast.success("Job successfully queued! Redirecting to dashboard...", { id: jobToast, duration: 3000 });
-      setTimeout(() => navigate('/dashboard'), 2000);
-
-    } catch (error: any) {
-      toast.error(error.message || "An unexpected error occurred.", { id: jobToast });
-      setIsStartingJob(false);
-      setJobProgress(null);
-    }
-  };
+  const hasError = !!state.error || (currentStep === 2 && !!state.filenameError);
 
   return (
     <div className="flex flex-col gap-4">
       <Stepper steps={steps.map(s => ({ id: s.id, name: s.name }))} currentStep={currentStep} />
-      <div className="pb-24"> {/* Added padding to bottom to avoid content being hidden by sticky footer */}
-        <Card className={cn("transition-all", (error || (currentStep === 2 && !!filenameError)) && "border-destructive ring-1 ring-destructive/50")}>
-          <CardHeader>
-            <CardTitle>{steps[currentStep].name}</CardTitle>
-            <CardDescription>{steps[currentStep].description}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {currentStep === 0 && (
-              <UploadTemplateStep
-                templateFile={templateFile}
-                setTemplateFile={setTemplateFile}
-                error={error}
-                setError={setError}
-                extractedVariables={extractedVariables}
-                setExtractedVariables={setExtractedVariables}
-                isExtracting={isExtracting}
-                setIsExtracting={setIsExtracting}
-              />
-            )}
-            {currentStep === 1 && (
-              <UploadCSVStep
-                csvFile={csvFile}
-                setCsvFile={setCsvFile}
-                error={error}
-                setError={setError}
-                extractedVariables={extractedVariables}
-                csvPreview={csvPreview}
-                setCsvPreview={setCsvPreview}
-                missingVariables={missingVariables}
-              />
-            )}
-            {currentStep === 2 && templateFile && csvFile && csvPreview && (
-              <ConfirmStep 
-                templateFile={templateFile} 
-                csvFile={csvFile} 
-                csvPreview={csvPreview}
-                filenameTemplate={filenameTemplate}
-                setFilenameTemplate={setFilenameTemplate}
-                setFilenameError={setFilenameError}
-              />
-            )}
-          </CardContent>
-        </Card>
+      <div className="pb-24">
+        <StepCard step={steps[currentStep]} hasError={hasError}>
+          <StepContent
+            currentStep={currentStep}
+            {...state}
+          />
+        </StepCard>
       </div>
       
-      <div 
-        className="fixed bottom-0 right-0 z-10 border-t bg-background/95 backdrop-blur-sm transition-[left] duration-200 ease-linear"
-        style={{ left: isMobile ? 0 : (sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)') }}
-      >
-        <div className="container mx-auto flex h-20 max-w-4xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div> {/* Left container */}
-              {currentStep > 0 ? (
-                <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
-                  Back
-                </Button>
-              ) : <div />}
-            </div>
-
-            <div className="flex items-center gap-4"> {/* Right container */}
-              <span className="text-sm text-muted-foreground hidden sm:inline">
-                Step {currentStep + 1} of {steps.length}
-              </span>
-
-              {currentStep < steps.length - 1 ? (
-                <TooltipProvider>
-                  <Tooltip open={showNextButtonTooltip && !isNextDisabled} delayDuration={0}>
-                    <TooltipTrigger asChild>
-                      <Button onClick={handleNextWithTooltip} disabled={isNextDisabled} className={cn({'animate-pulse': !isNextDisabled})}>
-                        Next
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Click here to continue!</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : isStartingJob && jobProgress ? (
-                <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
-              ) : (
-                <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
-                  {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Start Job
-                </Button>
-              )}
-            </div>
-        </div>
-      </div>
-
+      <StickyNavigation
+        currentStep={currentStep}
+        totalSteps={steps.length}
+        goToPrevStep={goToPrevStep}
+        handleNextWithTooltip={handleNextWithTooltip}
+        handleStartJob={handleStartJob}
+        isNextDisabled={isNextDisabled}
+        isStartingJob={isStartingJob}
+        jobProgress={jobProgress}
+        filenameError={state.filenameError}
+        showNextButtonTooltip={showNextButtonTooltip}
+      />
     </div>
   );
 }

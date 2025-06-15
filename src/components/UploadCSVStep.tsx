@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
+import type { CsvPreview } from '@/types/files';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = {
@@ -16,8 +18,8 @@ interface UploadCSVStepProps {
   error: string | null;
   setError: (error: string | null) => void;
   extractedVariables: string[] | null;
-  csvPreview: { headers: string[]; data: Record<string, string>[] } | null;
-  setCsvPreview: (preview: { headers: string[]; data: Record<string, string>[] } | null) => void;
+  csvPreview: CsvPreview | null;
+  setCsvPreview: (preview: CsvPreview | null) => void;
   missingVariables: string[];
 }
 

@@ -4,11 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { FileText, FileUp, CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { FilenameTemplateForm } from './FilenameTemplateForm';
+import type { CsvPreview } from '@/types/files';
 
 interface ConfirmStepProps {
   templateFile: File;
   csvFile: File;
-  csvPreview: { headers: string[]; data: Record<string, string>[] };
+  csvPreview: CsvPreview;
   filenameTemplate: string;
   setFilenameTemplate: React.Dispatch<React.SetStateAction<string>>;
   setFilenameError: (error: string | null) => void;
