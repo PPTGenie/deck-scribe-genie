@@ -67,10 +67,9 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Module ---
+    // --- 3. Setup Image Getter (but not the module yet) ---
     const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id);
     const imageOptions = createImageOptions(imageGetter);
-    const imageModule = new ImageModule(imageOptions);
 
     // --- 4. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
@@ -84,6 +83,10 @@ serve(async (req) => {
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
         const zip = new PizZip(templateData);
+        
+        // Create a fresh ImageModule instance for each presentation
+        const imageModule = new ImageModule(imageOptions);
+        
         const doc = new Docxtemplater(zip, {
             paragraphLoop: true,
             linebreaks: true,
