@@ -68,7 +68,10 @@ serve(async (req) => {
 
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
-    const parsedCsv = await parse(csvData, { skipFirstRow: true, columns: await parse(csvData, { skipFirstRow: false }).then(rows => rows[0]) }) as Record<string, string>[];
+    // The `parse` function from the Deno standard library is synchronous for string inputs
+    // and can automatically use the first row as headers. The previous implementation
+    // was incorrectly treating it as an asynchronous function.
+    const parsedCsv = parse(csvData, { skipFirstRow: true }) as Record<string, string>[];
     const totalRows = parsedCsv.length;
     
     console.log(`${logPrefix(job.id)} Downloaded and parsed ${totalRows} rows.`);
