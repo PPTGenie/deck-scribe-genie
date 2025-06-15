@@ -6,141 +6,15 @@ import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
 import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.1.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
-const logPrefix = (jobId: string) => `[job:${jobId}]`;
+import { logPrefix, updateProgress } from './utils/logging.ts';
+import { renderTemplate, sanitizeFilename } from './utils/filename.ts';
+import { parseCSVAsStrings } from './utils/csv.ts';
+import { createImageGetter, createImageOptions } from './utils/images.ts';
+import { claimJob, markJobComplete, markJobError } from './utils/job.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-const renderTemplate = (template: string, data: Record<string, string>): string => {
-  if (!template) return "";
-  return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => data[key.trim()] || "");
-};
-
-const sanitizeFilename = (filename: string): string => {
-  // 1. Normalize to NFD to separate base characters from diacritics
-  // and remove the diacritics.
-  const withoutDiacritics = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  const withReplacements = withoutDiacritics
-    .replace(/ø/g, 'o').replace(/Ø/g, 'O')
-    .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
-    .replace(/ß/g, 'ss')
-    .replace(/ł/g, 'l').replace(/Ł/g, 'L');
-
-  const invalidCharsRegex = /[<>:"/\\|?*`!^~[\]{}';=,+]|[\x00-\x1F]/g;
-  const reservedNamesRegex = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
-
-  let sanitized = withReplacements
-    .replace(invalidCharsRegex, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  sanitized = sanitized.replace(/^\.+|\.+$/g, '');
-
-  if (reservedNamesRegex.test(sanitized)) {
-    sanitized = `_${sanitized}`;
-  }
-
-  sanitized = sanitized.slice(0, 200);
-
-  return sanitized;
-};
-
-const updateProgress = async (supabaseAdmin: any, jobId: string, progress: number, step: string) => {
-  console.log(`${logPrefix(jobId)} ${step} (${progress}%)`);
-  await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
-};
-
-// Parse CSV while ensuring all values remain as strings
-const parseCSVAsStrings = (csvData: string): Record<string, string>[] => {
-  const lines = csvData.trim().split('\n');
-  if (lines.length < 2) {
-    throw new Error('CSV file requires a header row and at least one data row.');
-  }
-
-  // Parse header row
-  const headerLine = lines[0];
-  const headers = headerLine.split(',').map(header => header.trim().replace(/^["']|["']$/g, ''));
-
-  // Parse data rows
-  const dataRows = lines.slice(1);
-  const parsedData: Record<string, string>[] = [];
-
-  for (let i = 0; i < dataRows.length; i++) {
-    const line = dataRows[i].trim();
-    if (!line) continue; // Skip empty lines
-
-    // Simple CSV parsing that preserves all values as strings
-    const values = line.split(',').map(value => {
-      // Remove surrounding quotes if present, but keep the value as a string
-      return value.trim().replace(/^["']|["']$/g, '');
-    });
-
-    if (values.length !== headers.length) {
-      console.warn(`${logPrefix('parsing')} Warning: Row ${i + 2} has ${values.length} columns, but header has ${headers.length}. Data may be inconsistent.`);
-    }
-
-    const rowData: Record<string, string> = {};
-    headers.forEach((header, index) => {
-      // Ensure all values are explicitly treated as strings
-      rowData[header] = String(values[index] || '');
-    });
-    parsedData.push(rowData);
-  }
-
-  return parsedData;
-};
-
-// Image processing helper
-const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string) => {
-  return async (tagValue: string, tagName: string) => {
-    try {
-      // Normalize the image filename
-      const normalizedFilename = tagValue.toLowerCase()
-        .replace(/\.jpeg$/i, '.jpg')
-        .replace(/\.png$/i, '.png')
-        .replace(/\.jpg$/i, '.jpg');
-
-      const imagePath = `${userId}/${templateId}/${normalizedFilename}`;
-      
-      console.log(`Fetching image: ${imagePath}`);
-      
-      const { data, error } = await supabaseAdmin.storage
-        .from('images')
-        .download(imagePath);
-
-      if (error) {
-        console.warn(`Image not found: ${imagePath}, trying without path...`);
-        // Try alternative path (flat structure)
-        const flatPath = `${userId}/${templateId}/${tagValue}`;
-        const { data: flatData, error: flatError } = await supabaseAdmin.storage
-          .from('images')
-          .download(flatPath);
-        
-        if (flatError) {
-          console.error(`Image not found in either location: ${imagePath} or ${flatPath}`);
-          return null; // Return null for missing images rather than throwing
-        }
-        
-        return new Uint8Array(await flatData.arrayBuffer());
-      }
-
-      return new Uint8Array(await data.arrayBuffer());
-    } catch (error) {
-      console.error(`Error loading image ${tagValue}:`, error);
-      return null;
-    }
-  };
-};
-
-const createImageOptions = (imageGetter: any) => {
-  return {
-    centered: false,
-    getImage: imageGetter,
-    getSize: () => [150, 150], // Default size in pixels
-  };
 };
 
 serve(async (req) => {
@@ -155,23 +29,9 @@ serve(async (req) => {
   );
 
   // --- 1. Atomically Claim a Job ---
-  const { data: job, error: claimError } = await supabaseAdmin
-    .from('jobs')
-    .update({ status: 'processing' })
-    .eq('status', 'queued')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .select(`
-      *,
-      templates(storage_path, user_id),
-      csv_uploads(storage_path, rows_count)
-    `)
-    .single();
-
-  if (claimError || !job) {
-    if (claimError && claimError.code !== 'PGRST116') {
-      console.error('Error claiming job:', claimError);
-    }
+  const job = await claimJob(supabaseAdmin);
+  
+  if (!job) {
     return new Response(JSON.stringify({ message: 'No queued jobs found.' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
@@ -312,15 +172,7 @@ serve(async (req) => {
     // --- 6. Finalize Job (95% to 100%) ---
     await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
     
-    await supabaseAdmin
-      .from('jobs')
-      .update({
-        status: 'done',
-        progress: 100,
-        output_zip: zipPath,
-        finished_at: new Date().toISOString(),
-      })
-      .eq('id', job.id);
+    await markJobComplete(supabaseAdmin, job.id, zipPath);
 
     console.log(`${logPrefix(job.id)} Job completed successfully at 100%.`);
 
@@ -331,14 +183,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error(`${logPrefix(job.id)} An error occurred:`, error);
-    await supabaseAdmin
-      .from('jobs')
-      .update({
-        status: 'error',
-        error_msg: error.message,
-        finished_at: new Date().toISOString(),
-      })
-      .eq('id', job.id);
+    await markJobError(supabaseAdmin, job.id, error.message);
 
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
