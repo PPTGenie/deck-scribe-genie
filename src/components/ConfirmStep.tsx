@@ -1,0 +1,62 @@
+
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { FileText, FileUp, CheckCircle2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+
+interface ConfirmStepProps {
+  templateFile: File;
+  csvFile: File;
+  csvPreview: { headers: string[]; data: Record<string, string>[] };
+}
+
+export function ConfirmStep({ templateFile, csvFile, csvPreview }: ConfirmStepProps) {
+  const getFileSize = (size: number) => {
+    if (size / 1024 / 1024 < 0.01) {
+      return `${Math.ceil(size / 1024)} KB`;
+    }
+    return `${(size / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <Alert>
+        <CheckCircle2 className="h-4 w-4" />
+        <AlertTitle>Ready to Go!</AlertTitle>
+        <AlertDescription>
+          Please review the files below. Once you click "Start Job", the generation process will be queued.
+        </AlertDescription>
+      </Alert>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileUp className="h-5 w-5 text-primary" />
+              Template File
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-mono text-sm truncate" title={templateFile.name}>{templateFile.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {getFileSize(templateFile.size)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <FileText className="h-5 w-5 text-primary" />
+              CSV Data
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-mono text-sm truncate" title={csvFile.name}>{csvFile.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {csvPreview.data.length} rows
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

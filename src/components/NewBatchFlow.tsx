@@ -1,11 +1,16 @@
-
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Stepper } from '@/components/ui/stepper';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
 import { UploadCSVStep } from '@/components/UploadCSVStep';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from './ui/button';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
+import { ConfirmStep } from './ConfirmStep';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -22,6 +27,10 @@ export function NewBatchFlow() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
   const [missingVariables, setMissingVariables] = useState<string[]>([]);
+  const [isStartingJob, setIsStartingJob] = useState(false);
+
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   // When template file is cleared, also clear extracted variables and csv data.
   React.useEffect(() => {
@@ -43,7 +52,6 @@ export function NewBatchFlow() {
     }
   }, [extractedVariables, csvPreview]);
 
-
   const goToNextStep = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -64,6 +72,80 @@ export function NewBatchFlow() {
   } else if (currentStep === 1) {
     isNextDisabled = !csvFile || !!error || !csvPreview || missingVariables.length > 0;
   }
+
+  const handleStartJob = async () => {
+    if (!templateFile || !csvFile || !user || !csvPreview) {
+      toast.error("Missing required files or user session. Please start over.");
+      return;
+    }
+
+    setIsStartingJob(true);
+    const jobToast = toast.loading("Queuing your batch job...");
+
+    try {
+      // 1. Upload Template
+      const templateExt = templateFile.name.split('.').pop() || 'pptx';
+      const templateFileName = `${crypto.randomUUID()}.${templateExt}`;
+      const templatePath = `${user.id}/${templateFileName}`;
+      
+      const { error: templateUploadError } = await supabase.storage
+        .from('templates')
+        .upload(templatePath, templateFile);
+
+      if (templateUploadError) throw new Error(`Template upload failed: ${templateUploadError.message}`);
+
+      // 2. Insert Template record
+      const { data: templateData, error: templateInsertError } = await supabase
+        .from('templates')
+        .insert({ user_id: user.id, filename: templateFile.name, storage_path: templatePath })
+        .select('id')
+        .single();
+
+      if (templateInsertError) throw new Error(`Failed to save template record: ${templateInsertError.message}`);
+      if (!templateData) throw new Error("Could not retrieve template ID after insert.");
+
+      // 3. Upload CSV
+      const csvExt = csvFile.name.split('.').pop() || 'csv';
+      const csvFileName = `${crypto.randomUUID()}.${csvExt}`;
+      const csvPath = `${user.id}/${csvFileName}`;
+      
+      const { error: csvUploadError } = await supabase.storage
+        .from('csv_files')
+        .upload(csvPath, csvFile);
+
+      if (csvUploadError) throw new Error(`CSV upload failed: ${csvUploadError.message}`);
+
+      // 4. Insert CSV record
+      const { data: csvData, error: csvInsertError } = await supabase
+        .from('csv_uploads')
+        .insert({
+          user_id: user.id,
+          template_id: templateData.id,
+          rows_count: csvPreview.data.length,
+          storage_path: csvPath,
+        })
+        .select('id')
+        .single();
+
+      if (csvInsertError) throw new Error(`Failed to save CSV record: ${csvInsertError.message}`);
+      if (!csvData) throw new Error("Could not retrieve CSV upload ID after insert.");
+
+      // 5. Insert Job record
+      const { error: jobInsertError } = await supabase
+        .from('jobs')
+        .insert({ user_id: user.id, template_id: templateData.id, csv_id: csvData.id });
+
+      if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
+
+      toast.success("Job successfully queued! Redirecting to dashboard...", { id: jobToast, duration: 3000 });
+      setTimeout(() => navigate('/dashboard'), 500);
+
+    } catch (error: any) {
+      toast.error(error.message || "An unexpected error occurred.", { id: jobToast });
+    } finally {
+      setIsStartingJob(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -98,17 +180,19 @@ export function NewBatchFlow() {
               missingVariables={missingVariables}
             />
           )}
-          {currentStep === 2 && (
-            <div className="text-center p-8 space-y-4">
-              <p>Step 3: Confirm & Start - Coming soon!</p>
-            </div>
+          {currentStep === 2 && templateFile && csvFile && csvPreview && (
+            <ConfirmStep 
+              templateFile={templateFile} 
+              csvFile={csvFile} 
+              csvPreview={csvPreview} 
+            />
           )}
         </CardContent>
       </Card>
       
       <div className="flex w-full items-center justify-between pt-4">
         {currentStep > 0 ? (
-          <Button variant="outline" onClick={goToPrevStep}>
+          <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
             Back
           </Button>
         ) : <div />}
@@ -118,7 +202,10 @@ export function NewBatchFlow() {
             Next
           </Button>
         ) : (
-          <Button disabled>Start Job</Button>
+          <Button onClick={handleStartJob} disabled={isStartingJob}>
+            {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Start Job
+          </Button>
         )}
       </div>
 
