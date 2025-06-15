@@ -5,65 +5,21 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from './ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-} from '@/components/ui/dropdown-menu';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Download, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-interface Job {
-  id: string;
-  status: 'queued' | 'processing' | 'done' | 'error';
-  progress: number;
-  created_at: string;
-  templates: { filename: string };
-  csv_uploads: { rows_count: number };
-  output_zip?: string;
-  error_msg?: string;
-}
+import { Job } from '@/types/jobs';
+import { NoJobsCard } from './NoJobsCard';
+import { JobTableRow } from './JobTableRow';
+import { DeleteJobDialog } from './DeleteJobDialog';
 
 interface JobsTableProps {
   jobs: Job[];
 }
-
-const getStatusVariant = (status: string) => {
-  switch (status) {
-    case 'done':
-      return 'default';
-    case 'error':
-      return 'destructive';
-    default:
-      return 'secondary';
-  }
-};
 
 export function JobsTable({ jobs }: JobsTableProps) {
   const { user } = useAuth();
@@ -132,18 +88,7 @@ export function JobsTable({ jobs }: JobsTableProps) {
   };
 
   if (jobs.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>No Jobs Found</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            You haven't created any batch jobs yet. Click "New Batch" to get started.
-          </p>
-        </CardContent>
-      </Card>
-    );
+    return <NoJobsCard />;
   }
 
   return (
@@ -166,95 +111,24 @@ export function JobsTable({ jobs }: JobsTableProps) {
             </TableHeader>
             <TableBody>
               {jobs.map((job) => (
-                <TableRow key={job.id}>
-                  <TableCell className="font-medium">
-                    {job.templates.filename}
-                  </TableCell>
-                  <TableCell>{job.csv_uploads.rows_count}</TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(job.status)} className="capitalize">
-                      {job.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="w-32">
-                    <div className="space-y-1">
-                      <Progress value={job.progress} className="h-2" />
-                      <span className="text-xs text-muted-foreground">
-                        {job.progress}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {new Date(job.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          Actions
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem onClick={() => handleRetry(job.id)}>
-                          Retry
-                        </DropdownMenuItem>
-
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger disabled={job.status !== 'done' || !job.output_zip}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent>
-                              {/* PDF download is not yet implemented. */}
-                              <DropdownMenuItem onClick={() => handleDownload(job)} disabled={downloadingJobId === job.id}>
-                                {downloadingJobId === job.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Download .pptx
-                              </DropdownMenuItem>
-                              <DropdownMenuItem disabled className="flex justify-between items-center">
-                                <span>Download .pdf</span>
-                                <Badge variant="outline">Soon</Badge>
-                              </DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
-
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                          onClick={() => setJobToDelete(job)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                <JobTableRow
+                  key={job.id}
+                  job={job}
+                  downloadingJobId={downloadingJobId}
+                  onRetry={handleRetry}
+                  onDownload={handleDownload}
+                  onDelete={setJobToDelete}
+                />
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
-      <AlertDialog open={!!jobToDelete} onOpenChange={(open) => !open && setJobToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this job?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the job record from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteJobDialog
+        isOpen={!!jobToDelete}
+        onOpenChange={(open) => !open && setJobToDelete(null)}
+        onConfirm={handleDelete}
+      />
     </>
   );
 }
