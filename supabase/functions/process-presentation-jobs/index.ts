@@ -1,7 +1,5 @@
-
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
 import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.12.0';
@@ -52,6 +50,46 @@ const sanitizeFilename = (filename: string): string => {
 const updateProgress = async (supabaseAdmin: any, jobId: string, progress: number, step: string) => {
   console.log(`${logPrefix(jobId)} ${step} (${progress}%)`);
   await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
+};
+
+// Parse CSV while ensuring all values remain as strings
+const parseCSVAsStrings = (csvData: string): Record<string, string>[] => {
+  const lines = csvData.trim().split('\n');
+  if (lines.length < 2) {
+    throw new Error('CSV file requires a header row and at least one data row.');
+  }
+
+  // Parse header row
+  const headerLine = lines[0];
+  const headers = headerLine.split(',').map(header => header.trim().replace(/^["']|["']$/g, ''));
+
+  // Parse data rows
+  const dataRows = lines.slice(1);
+  const parsedData: Record<string, string>[] = [];
+
+  for (let i = 0; i < dataRows.length; i++) {
+    const line = dataRows[i].trim();
+    if (!line) continue; // Skip empty lines
+
+    // Simple CSV parsing that preserves all values as strings
+    const values = line.split(',').map(value => {
+      // Remove surrounding quotes if present, but keep the value as a string
+      return value.trim().replace(/^["']|["']$/g, '');
+    });
+
+    if (values.length !== headers.length) {
+      console.warn(`${logPrefix('parsing')} Warning: Row ${i + 2} has ${values.length} columns, but header has ${headers.length}. Data may be inconsistent.`);
+    }
+
+    const rowData: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      // Ensure all values are explicitly treated as strings
+      rowData[header] = String(values[index] || '');
+    });
+    parsedData.push(rowData);
+  }
+
+  return parsedData;
 };
 
 // Image processing helper
@@ -160,30 +198,11 @@ serve(async (req) => {
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
     
-    const allRows = parse(csvData, { skipFirstRow: false }) as string[][];
-
-    if (allRows.length < 2) {
-      throw new Error('CSV file requires a header row and at least one data row.');
-    }
-
-    const headers = allRows[0];
-    const dataRows = allRows.slice(1);
-
-    console.log(`${logPrefix(job.id)} Found headers: [${headers.join(', ')}]`);
-
-    const parsedCsv: Record<string, string>[] = dataRows.map((row, rowIndex) => {
-      if (row.length !== headers.length) {
-        console.warn(`${logPrefix(job.id)} Warning: Row ${rowIndex + 2} has ${row.length} columns, but header has ${headers.length}. Data may be inconsistent.`);
-      }
-      const rowData: Record<string, string> = {};
-      headers.forEach((header, index) => {
-        rowData[header.trim()] = row[index] || '';
-      });
-      return rowData;
-    });
-    
+    // Use our custom string-preserving CSV parser
+    const parsedCsv = parseCSVAsStrings(csvData);
     const totalRows = parsedCsv.length;
-    console.log(`${logPrefix(job.id)} Successfully parsed ${totalRows} data rows.`);
+    
+    console.log(`${logPrefix(job.id)} Successfully parsed ${totalRows} data rows as strings.`);
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
@@ -211,6 +230,9 @@ serve(async (req) => {
             nullGetter: () => "",
             modules: [imageModule]
         });
+
+        // Log the actual values being used for debugging
+        console.log(`${logPrefix(job.id)} Row ${index + 1} data:`, JSON.stringify(row));
 
         doc.render(row);
         
