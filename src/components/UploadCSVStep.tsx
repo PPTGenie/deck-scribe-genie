@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
-import type { CsvPreview } from '@/types/files';
+import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = {
@@ -17,7 +17,7 @@ interface UploadCSVStepProps {
   setCsvFile: (file: File | null) => void;
   error: string | null;
   setError: (error: string | null) => void;
-  extractedVariables: string[] | null;
+  extractedVariables: TemplateVariables | null;
   csvPreview: CsvPreview | null;
   setCsvPreview: (preview: CsvPreview | null) => void;
   missingVariables: string[];

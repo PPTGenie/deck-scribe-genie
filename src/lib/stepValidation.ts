@@ -1,5 +1,5 @@
 
-import type { CsvPreview } from '@/types/files';
+import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 interface ValidationParams {
     currentStep: number;

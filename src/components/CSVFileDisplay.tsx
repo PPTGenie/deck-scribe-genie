@@ -5,13 +5,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CSVPreviewTable } from './CSVPreviewTable';
 import { DismissibleAlert } from './DismissibleAlert';
 import { FileInfoDisplay } from './FileInfoDisplay';
+import type { TemplateVariables } from '@/types/files';
 
 interface CSVFileDisplayProps {
   csvFile: File;
   csvPreview: { headers: string[]; data: Record<string, string>[] };
   removeFile: () => void;
   missingVariables: string[];
-  extractedVariables: string[] | null;
+  extractedVariables: TemplateVariables | null;
 }
 
 export function CSVFileDisplay({

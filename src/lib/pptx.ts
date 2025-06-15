@@ -3,13 +3,19 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import inspectModule from "docxtemplater/js/inspect-module";
 
+export interface TemplateVariables {
+  text: string[];
+  images: string[];
+}
+
 /**
  * Extracts variables from a .pptx file template.
  * Variables are expected to be in {{variable_name}} format.
+ * Image variables should end with '_img' (e.g., {{logo_img}}, {{photo_img}}).
  * @param file The .pptx file to parse.
- * @returns A promise that resolves with an array of unique variable names.
+ * @returns A promise that resolves with an object containing text and image variable arrays.
  */
-export const extractTemplateVariables = async (file: File): Promise<string[]> => {
+export const extractTemplateVariables = async (file: File): Promise<TemplateVariables> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -41,7 +47,22 @@ export const extractTemplateVariables = async (file: File): Promise<string[]> =>
                 const allTags = iModule.getAllTags();
                 const variables = Object.keys(allTags);
 
-                resolve([...new Set(variables)]);
+                // Separate text and image variables
+                const textVariables: string[] = [];
+                const imageVariables: string[] = [];
+
+                variables.forEach(variable => {
+                    if (variable.endsWith('_img')) {
+                        imageVariables.push(variable);
+                    } else {
+                        textVariables.push(variable);
+                    }
+                });
+
+                resolve({
+                    text: [...new Set(textVariables)],
+                    images: [...new Set(imageVariables)]
+                });
             } catch (error: any) {
                 console.error("Error parsing PPTX file:", error);
                 if (error.properties && error.properties.id === 'corrupted_zip') {

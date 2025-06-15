@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { FileUpload } from '@/components/FileUpload';
 import { Button } from '@/components/ui/button';
@@ -7,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from '@/lib/utils';
 import { extractTemplateVariables } from '@/lib/pptx';
 import { TemplateVariablesDisplay } from './TemplateVariablesDisplay';
+import type { TemplateVariables } from '@/types/files';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_FILE_TYPES = {
@@ -18,8 +20,8 @@ interface UploadTemplateStepProps {
   setTemplateFile: (file: File | null) => void;
   error: string | null;
   setError: (error: string | null) => void;
-  extractedVariables: string[] | null;
-  setExtractedVariables: (variables: string[] | null) => void;
+  extractedVariables: TemplateVariables | null;
+  setExtractedVariables: (variables: TemplateVariables | null) => void;
   isExtracting: boolean;
   setIsExtracting: (isExtracting: boolean) => void;
 }
@@ -95,9 +97,9 @@ export function UploadTemplateStep({
       <Info className="h-4 w-4" />
       <AlertTitle>How placeholders work</AlertTitle>
       <AlertDescription>
-        Your template must use placeholders like <code>{'{{name}}'}</code>. We'll replace these with data from your CSV.
+        Your template must use placeholders like <code>{'{{name}}'}</code> for text and <code>{'{{logo_img}}'}</code> for images. We'll replace these with data from your CSV.
         <br/>
-        For example: <code>{'{{company_name}}'}</code> → "Acme Inc."
+        For example: <code>{'{{company_name}}'}</code> → "Acme Inc." and <code>{'{{logo_img}}'}</code> → company logo image
       </AlertDescription>
     </Alert>
   );

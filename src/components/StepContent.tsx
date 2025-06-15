@@ -3,7 +3,7 @@ import React from 'react';
 import { UploadTemplateStep } from '@/components/UploadTemplateStep';
 import { UploadCSVStep } from '@/components/UploadCSVStep';
 import { ConfirmStep } from './ConfirmStep';
-import type { CsvPreview } from '@/types/files';
+import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 interface StepContentProps {
     currentStep: number;
@@ -11,8 +11,8 @@ interface StepContentProps {
     setTemplateFile: (file: File | null) => void;
     error: string | null;
     setError: (error: string | null) => void;
-    extractedVariables: string[] | null;
-    setExtractedVariables: (vars: string[] | null) => void;
+    extractedVariables: TemplateVariables | null;
+    setExtractedVariables: (vars: TemplateVariables | null) => void;
     isExtracting: boolean;
     setIsExtracting: (isExtracting: boolean) => void;
     csvFile: File | null;

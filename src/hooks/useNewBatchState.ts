@@ -1,12 +1,12 @@
 
 import { useState, useEffect } from 'react';
-import type { CsvPreview } from '@/types/files';
+import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 export function useNewBatchState() {
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [extractedVariables, setExtractedVariables] = useState<string[] | null>(null);
+  const [extractedVariables, setExtractedVariables] = useState<TemplateVariables | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [missingVariables, setMissingVariables] = useState<string[]>([]);
@@ -26,7 +26,8 @@ export function useNewBatchState() {
   // Recalculate missing variables when template variables or CSV headers change
   useEffect(() => {
     if (extractedVariables && csvPreview?.headers) {
-      const missing = extractedVariables.filter(v => !csvPreview.headers.includes(v));
+      const allVariables = [...extractedVariables.text, ...extractedVariables.images];
+      const missing = allVariables.filter(v => !csvPreview.headers.includes(v));
       setMissingVariables(missing);
     } else {
       setMissingVariables([]);
