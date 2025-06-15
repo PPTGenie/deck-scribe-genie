@@ -18,7 +18,44 @@ const renderTemplate = (template: string, data: Record<string, string>): string 
 };
 
 const sanitizeFilename = (filename: string): string => {
-  return filename.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 200);
+  // 1. Normalize to NFD to separate base characters from diacritics
+  // and remove the diacritics.
+  const withoutDiacritics = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // 2. Replace other common special characters
+  const withReplacements = withoutDiacritics
+    .replace(/ø/g, 'o').replace(/Ø/g, 'O')
+    .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
+    .replace(/ß/g, 'ss')
+    .replace(/ł/g, 'l').replace(/Ł/g, 'L');
+
+  // 3. Define invalid characters for file systems.
+  // This includes Windows/macOS/Linux invalid chars, plus others that can cause issues.
+  // Also removes control characters.
+  // eslint-disable-next-line no-control-regex
+  const invalidCharsRegex = /[<>:"/\\|?*`!^~[\]{}';=,+]|[\x00-\x1F]/g;
+
+  // 4. Define reserved filenames for Windows. We check against the name part only.
+  const reservedNamesRegex = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+
+  // 5. Sanitize the string
+  let sanitized = withReplacements
+    .replace(invalidCharsRegex, '_') // Replace invalid characters
+    .replace(/\s+/g, ' ')             // Collapse whitespace to single spaces
+    .trim();                          // Trim leading/trailing whitespace
+
+  // 6. Remove any leading or trailing periods
+  sanitized = sanitized.replace(/^\.+|\.+$/g, '');
+
+  // 7. Check if the sanitized name is a reserved name.
+  if (reservedNamesRegex.test(sanitized)) {
+    sanitized = `_${sanitized}`;
+  }
+
+  // 8. Limit length to a reasonable value
+  sanitized = sanitized.slice(0, 200);
+
+  return sanitized;
 };
 
 serve(async (req) => {
@@ -121,7 +158,9 @@ serve(async (req) => {
         let outputFilename;
         if (job.filename_template) {
           const renderedName = renderTemplate(job.filename_template, row);
-          outputFilename = sanitizeFilename(renderedName) + '.pptx';
+          const sanitized = sanitizeFilename(renderedName);
+          console.log(`${logPrefix(job.id)} Sanitizing filename: "${renderedName}" -> "${sanitized}"`);
+          outputFilename = sanitized + '.pptx';
         }
 
         // Fallback if template is missing, empty, or only contains invalid characters
