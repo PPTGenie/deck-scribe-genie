@@ -122,10 +122,10 @@ export function ZipBatchFlow() {
           </div>
 
           <FilenameTemplateForm
-            csvPreview={state.csvPreview}
             filenameTemplate={state.filenameTemplate}
             setFilenameTemplate={state.setFilenameTemplate}
             setFilenameError={state.setFilenameError}
+            csvHeaders={state.csvPreview.headers}
           />
         </div>
       );
