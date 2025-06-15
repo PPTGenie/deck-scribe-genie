@@ -1,3 +1,4 @@
+
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, toast } from "sonner"
 
@@ -21,6 +22,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
         },
       }}
+      position="bottom-center"
+      closeButton
+      offset={96} // Positioned 96px from the bottom to clear sticky nav (80px) + spacing (16px)
       {...props}
     />
   )

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -34,8 +33,7 @@ export function useJobCreation({
 
         setIsStartingJob(true);
         setJobProgress({ value: 0, message: 'Initiating job...' });
-        const jobToast = toast.loading("Queuing your batch job...");
-
+        
         try {
             await createJob({
                 templateFile,
@@ -46,9 +44,9 @@ export function useJobCreation({
                 setJobProgress,
                 navigate,
             });
-            toast.success("Job successfully queued! Redirecting to dashboard...", { id: jobToast, duration: 3000 });
+            toast.success("Job successfully queued! Redirecting to dashboard...", { duration: 3000 });
         } catch (error: any) {
-            toast.error(error.message || "An unexpected error occurred.", { id: jobToast });
+            toast.error(error.message || "An unexpected error occurred.");
             setIsStartingJob(false);
             setJobProgress(null);
         }
