@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
@@ -41,7 +40,7 @@ const sanitizeFilename = (filename: string): string => {
 
   // 5. Sanitize the string
   let sanitized = withReplacements
-    .replace(invalidCharsRegex, '_') // Replace invalid characters
+    .replace(invalidCharsRegex, '') // Replace invalid characters
     .replace(/\s+/g, ' ')             // Collapse whitespace to single spaces
     .trim();                          // Trim leading/trailing whitespace
 
