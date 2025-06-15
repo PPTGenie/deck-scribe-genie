@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Stepper } from '@/components/ui/stepper';
@@ -12,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { ConfirmStep } from './ConfirmStep';
+import { JobCreationProgress } from './JobCreationProgress';
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -29,6 +29,7 @@ export function NewBatchFlow() {
   const [csvPreview, setCsvPreview] = useState<{ headers: string[]; data: Record<string, string>[] } | null>(null);
   const [missingVariables, setMissingVariables] = useState<string[]>([]);
   const [isStartingJob, setIsStartingJob] = useState(false);
+  const [jobProgress, setJobProgress] = useState<{ value: number; message: string } | null>(null);
   const [filenameTemplate, setFilenameTemplate] = useState<string>('');
   const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
 
@@ -92,10 +93,12 @@ export function NewBatchFlow() {
     }
 
     setIsStartingJob(true);
+    setJobProgress({ value: 0, message: 'Initiating job...' });
     const jobToast = toast.loading("Queuing your batch job...");
 
     try {
       // 1. Upload Template
+      setJobProgress({ value: 10, message: `Uploading template: ${templateFile.name}` });
       const templateExt = templateFile.name.split('.').pop() || 'pptx';
       const templateFileName = `${crypto.randomUUID()}.${templateExt}`;
       const templatePath = `${user.id}/${templateFileName}`;
@@ -107,6 +110,7 @@ export function NewBatchFlow() {
       if (templateUploadError) throw new Error(`Template upload failed: ${templateUploadError.message}`);
 
       // 2. Insert Template record
+      setJobProgress({ value: 25, message: 'Saving template record...' });
       const { data: templateData, error: templateInsertError } = await supabase
         .from('templates')
         .insert({ user_id: user.id, filename: templateFile.name, storage_path: templatePath })
@@ -117,6 +121,7 @@ export function NewBatchFlow() {
       if (!templateData) throw new Error("Could not retrieve template ID after insert.");
 
       // 3. Upload CSV
+      setJobProgress({ value: 45, message: `Uploading data file: ${csvFile.name}` });
       const csvExt = csvFile.name.split('.').pop() || 'csv';
       const csvFileName = `${crypto.randomUUID()}.${csvExt}`;
       const csvPath = `${user.id}/${csvFileName}`;
@@ -128,6 +133,7 @@ export function NewBatchFlow() {
       if (csvUploadError) throw new Error(`CSV upload failed: ${csvUploadError.message}`);
 
       // 4. Insert CSV record
+      setJobProgress({ value: 65, message: 'Saving data record...' });
       const { data: csvData, error: csvInsertError } = await supabase
         .from('csv_uploads')
         .insert({
@@ -143,6 +149,7 @@ export function NewBatchFlow() {
       if (!csvData) throw new Error("Could not retrieve CSV upload ID after insert.");
 
       // 5. Insert Job record
+      setJobProgress({ value: 85, message: 'Creating job...' });
       const { error: jobInsertError } = await supabase
         .from('jobs')
         .insert({
@@ -155,19 +162,19 @@ export function NewBatchFlow() {
       if (jobInsertError) throw new Error(`Failed to create job record: ${jobInsertError.message}`);
 
       // 6. Trigger edge function to start processing immediately.
-      // We don't await this so it doesn't block the UI. If it fails,
-      // the scheduled task will pick up the job later.
+      setJobProgress({ value: 95, message: 'Triggering processing...' });
       supabase.functions.invoke('process-presentation-jobs').catch(err => {
         console.error("Error triggering job processing immediately:", err);
       });
-
+      
+      setJobProgress({ value: 100, message: 'Job queued successfully!' });
       toast.success("Job successfully queued! Redirecting to dashboard...", { id: jobToast, duration: 3000 });
       setTimeout(() => navigate('/dashboard'), 2000);
 
     } catch (error: any) {
       toast.error(error.message || "An unexpected error occurred.", { id: jobToast });
-    } finally {
       setIsStartingJob(false);
+      setJobProgress(null);
     }
   };
 
@@ -217,7 +224,7 @@ export function NewBatchFlow() {
         </CardContent>
       </Card>
       
-      <div className="flex w-full items-center justify-between pt-4">
+      <div className="flex w-full items-center justify-between pt-4 min-h-[40px]">
         {currentStep > 0 ? (
           <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
             Back
@@ -228,6 +235,8 @@ export function NewBatchFlow() {
           <Button onClick={goToNextStep} disabled={isNextDisabled}>
             Next
           </Button>
+        ) : isStartingJob && jobProgress ? (
+          <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
         ) : (
           <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
             {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
