@@ -59,6 +59,16 @@ const Dashboard = () => {
       }));
     },
     enabled: !!user,
+    refetchInterval: (query) => {
+      const data = query.state.data as { status: string }[] | undefined;
+      if (!data) {
+        return false;
+      }
+      const hasPendingJobs = data.some(
+        (job) => job.status === 'queued' || job.status === 'processing'
+      );
+      return hasPendingJobs ? 5000 : false;
+    },
   });
 
   if (isLoading) {
