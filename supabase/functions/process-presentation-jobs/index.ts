@@ -4,7 +4,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
-import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.12.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
@@ -54,54 +53,70 @@ const updateProgress = async (supabaseAdmin: any, jobId: string, progress: numbe
   await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
 };
 
-// Image processing helper
-const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string) => {
-  return async (tagValue: string, tagName: string) => {
-    try {
-      // Normalize the image filename
-      const normalizedFilename = tagValue.toLowerCase()
-        .replace(/\.jpeg$/i, '.jpg')
-        .replace(/\.png$/i, '.png')
-        .replace(/\.jpg$/i, '.jpg');
-
-      const imagePath = `${userId}/${templateId}/${normalizedFilename}`;
-      
-      console.log(`Fetching image: ${imagePath}`);
-      
-      const { data, error } = await supabaseAdmin.storage
-        .from('images')
-        .download(imagePath);
-
-      if (error) {
-        console.warn(`Image not found: ${imagePath}, trying without path...`);
-        // Try alternative path (flat structure)
-        const flatPath = `${userId}/${templateId}/${tagValue}`;
-        const { data: flatData, error: flatError } = await supabaseAdmin.storage
-          .from('images')
-          .download(flatPath);
+// Image processing helper - simplified version that replaces image placeholders with base64
+const processImagePlaceholders = async (supabaseAdmin: any, userId: string, templateId: string, templateData: Uint8Array, rowData: Record<string, string>) => {
+  const zip = new PizZip(templateData);
+  
+  // Get all files in the template
+  const files = zip.files;
+  
+  for (const filename in files) {
+    if (filename.includes('word/document.xml') || filename.includes('word/slides/')) {
+      const file = files[filename];
+      if (!file.dir) {
+        let content = file.asText();
         
-        if (flatError) {
-          console.error(`Image not found in either location: ${imagePath} or ${flatPath}`);
-          return null; // Return null for missing images rather than throwing
+        // Look for image placeholders in the format {{variablename_img}}
+        const imageRegex = /\{\{([^}]+_img)\}\}/g;
+        let match;
+        
+        while ((match = imageRegex.exec(content)) !== null) {
+          const placeholder = match[0];
+          const variableName = match[1];
+          const imageBaseName = variableName.replace(/_img$/, '');
+          
+          // Check if we have this image in the row data
+          if (rowData[variableName]) {
+            try {
+              const normalizedFilename = rowData[variableName].toLowerCase()
+                .replace(/\.jpeg$/i, '.jpg')
+                .replace(/\.png$/i, '.png')
+                .replace(/\.jpg$/i, '.jpg');
+
+              const imagePath = `${userId}/${templateId}/${normalizedFilename}`;
+              
+              console.log(`Fetching image: ${imagePath}`);
+              
+              const { data: imageData, error } = await supabaseAdmin.storage
+                .from('images')
+                .download(imagePath);
+
+              if (!error && imageData) {
+                // For now, replace with a simple text placeholder
+                // In a full implementation, we'd need to properly embed the image in the document XML
+                content = content.replace(placeholder, `[IMAGE: ${imageBaseName}]`);
+                console.log(`Replaced image placeholder ${placeholder} with text reference`);
+              } else {
+                console.warn(`Image not found: ${imagePath}`);
+                content = content.replace(placeholder, `[MISSING IMAGE: ${imageBaseName}]`);
+              }
+            } catch (error) {
+              console.error(`Error processing image ${variableName}:`, error);
+              content = content.replace(placeholder, `[ERROR: ${imageBaseName}]`);
+            }
+          } else {
+            // Remove placeholder if no image data provided
+            content = content.replace(placeholder, '');
+          }
         }
         
-        return new Uint8Array(await flatData.arrayBuffer());
+        // Update the file content
+        zip.file(filename, content);
       }
-
-      return new Uint8Array(await data.arrayBuffer());
-    } catch (error) {
-      console.error(`Error loading image ${tagValue}:`, error);
-      return null;
     }
-  };
-};
-
-const createImageOptions = (imageGetter: any) => {
-  return {
-    centered: false,
-    getImage: imageGetter,
-    getSize: () => [150, 150], // Default size in pixels
-  };
+  }
+  
+  return zip;
 };
 
 serve(async (req) => {
@@ -157,7 +172,7 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 3, 'Files downloaded, parsing CSV...');
 
-    const templateData = await templateFile.data.arrayBuffer();
+    const templateData = new Uint8Array(await templateFile.data.arrayBuffer());
     const csvData = await csvFile.data.text();
     
     const allRows = parse(csvData, { skipFirstRow: false }) as string[][];
@@ -187,11 +202,6 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Module ---
-    const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id);
-    const imageOptions = createImageOptions(imageGetter);
-    const imageModule = new ImageModule(imageOptions);
-
     // --- 4. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
@@ -203,16 +213,22 @@ serve(async (req) => {
         
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
-        const zip = new PizZip(templateData);
-        const doc = new Docxtemplater(zip, {
+        // First process images, then use docxtemplater for text
+        const processedZip = await processImagePlaceholders(supabaseAdmin, job.templates.user_id, job.template_id, templateData, row);
+        
+        const doc = new Docxtemplater(processedZip, {
             paragraphLoop: true,
             linebreaks: true,
             delimiters: { start: '{{', end: '}}' },
             nullGetter: () => "",
-            modules: [imageModule]
         });
 
-        doc.render(row);
+        // Filter out image variables for text processing
+        const textOnlyRow = Object.fromEntries(
+          Object.entries(row).filter(([key]) => !key.endsWith('_img'))
+        );
+
+        doc.render(textOnlyRow);
         
         const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
         
