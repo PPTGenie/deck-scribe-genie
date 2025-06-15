@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Stepper } from '@/components/ui/stepper';
@@ -14,6 +13,12 @@ import { Loader2 } from 'lucide-react';
 import { ConfirmStep } from './ConfirmStep';
 import { JobCreationProgress } from './JobCreationProgress';
 import { useSidebar } from '@/components/ui/sidebar';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const steps = [
   { id: 'Step 1', name: 'Upload Template', description: 'Select your .pptx file with placeholders.' },
@@ -34,10 +39,19 @@ export function NewBatchFlow() {
   const [jobProgress, setJobProgress] = useState<{ value: number; message: string } | null>(null);
   const [filenameTemplate, setFilenameTemplate] = useState<string>('');
   const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
+  const [showNextButtonTooltip, setShowNextButtonTooltip] = useState(false);
 
   const { user } = useAuth();
   const navigate = useNavigate();
   const { open: sidebarOpen, isMobile } = useSidebar();
+
+  React.useEffect(() => {
+    // Show tooltip for first-time users to guide them.
+    const hasSeenTooltip = localStorage.getItem('hasSeenNextButtonTooltip_v1');
+    if (!hasSeenTooltip) {
+      setShowNextButtonTooltip(true);
+    }
+  }, []);
 
   // When template file is cleared, also clear extracted variables and csv data.
   React.useEffect(() => {
@@ -73,6 +87,14 @@ export function NewBatchFlow() {
       setCurrentStep(currentStep + 1);
       setError(null);
     }
+  };
+
+  const handleNextWithTooltip = () => {
+    if (showNextButtonTooltip) {
+      localStorage.setItem('hasSeenNextButtonTooltip_v1', 'true');
+      setShowNextButtonTooltip(false);
+    }
+    goToNextStep();
   };
 
   const goToPrevStep = () => {
@@ -234,24 +256,41 @@ export function NewBatchFlow() {
         style={{ left: isMobile ? 0 : (sidebarOpen ? 'var(--sidebar-width)' : 'var(--sidebar-width-icon)') }}
       >
         <div className="container mx-auto flex h-20 max-w-4xl items-center justify-between px-4 sm:px-6 lg:px-8">
-            {currentStep > 0 ? (
-              <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
-                Back
-              </Button>
-            ) : <div />}
+            <div> {/* Left container */}
+              {currentStep > 0 ? (
+                <Button variant="outline" onClick={goToPrevStep} disabled={isStartingJob}>
+                  Back
+                </Button>
+              ) : <div />}
+            </div>
 
-            {currentStep < steps.length - 1 ? (
-              <Button onClick={goToNextStep} disabled={isNextDisabled}>
-                Next
-              </Button>
-            ) : isStartingJob && jobProgress ? (
-              <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
-            ) : (
-              <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
-                {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Start Job
-              </Button>
-            )}
+            <div className="flex items-center gap-4"> {/* Right container */}
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                Step {currentStep + 1} of {steps.length}
+              </span>
+
+              {currentStep < steps.length - 1 ? (
+                <TooltipProvider>
+                  <Tooltip open={showNextButtonTooltip && !isNextDisabled} delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <Button onClick={handleNextWithTooltip} disabled={isNextDisabled} className={cn({'animate-pulse': !isNextDisabled})}>
+                        Next
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Click here to continue!</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : isStartingJob && jobProgress ? (
+                <JobCreationProgress progress={jobProgress.value} message={jobProgress.message} />
+              ) : (
+                <Button onClick={handleStartJob} disabled={!!filenameError || isStartingJob}>
+                  {isStartingJob && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Start Job
+                </Button>
+              )}
+            </div>
         </div>
       </div>
 
