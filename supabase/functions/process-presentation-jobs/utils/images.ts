@@ -3,7 +3,7 @@
 export const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string) => {
   return async (tagValue: string) => {
     try {
-      console.log(`Fetching image: ${tagValue}`);
+      console.log(`Image getter called for: ${tagValue}`);
       
       // Try the exact filename first
       let imagePath = `${userId}/${templateId}/${tagValue}`;
@@ -30,6 +30,7 @@ export const createImageGetter = (supabaseAdmin: any, userId: string, templateId
         return null;
       }
 
+      console.log(`Successfully loaded image: ${tagValue}`);
       const arrayBuffer = await data.arrayBuffer();
       return new Uint8Array(arrayBuffer);
     } catch (err) {

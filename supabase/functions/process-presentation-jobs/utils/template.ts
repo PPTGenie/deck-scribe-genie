@@ -38,15 +38,17 @@ export const createDocumentFromTemplate = (
     centered: false,
     getImage: imageGetter,
     getSize: () => [150, 150],
-    getProps: (tagName: string) => {
+    getProps: (tagName: string, tagValue: any, tagXmlElement: any) => {
       // Only process variables that end with _img as images
       if (imageVariables.includes(tagName)) {
+        console.log(`Processing ${tagName} as image with value: ${tagValue}`);
         return {
           centered: false,
           getSize: () => [150, 150]
         };
       }
-      return false; // Let docxtemplater handle as text
+      // Return null for non-image variables so docxtemplater handles them as text
+      return null;
     }
   });
   
