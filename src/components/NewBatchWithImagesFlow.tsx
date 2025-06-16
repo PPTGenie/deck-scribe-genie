@@ -10,7 +10,6 @@ import { UploadTemplateStep } from './UploadTemplateStep';
 import { ImageUploadStep } from './ImageUploadStep';
 import { UploadCSVStep } from './UploadCSVStep';
 import { ConfirmStep } from './ConfirmStep';
-import { StorageValidationAlert } from './StorageValidationAlert';
 import { StickyNavigation } from './StickyNavigation';
 
 export function NewBatchWithImagesFlow() {
@@ -62,13 +61,12 @@ export function NewBatchWithImagesFlow() {
     }
     
     if (hasImageVariables && currentStep === 2) {
-      // Image step - check if all required images are uploaded AND storage validation passes
+      // Image step - check if all required images are uploaded (local validation only)
       const missingImages = state.csvImageValues.filter(csvValue => {
         const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
         return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);
       });
-      const hasStorageValidationErrors = storageValidation && !storageValidation.isValid;
-      return missingImages.length > 0 || hasStorageValidationErrors || isValidating;
+      return missingImages.length > 0;
     }
     
     return false;
@@ -109,20 +107,14 @@ export function NewBatchWithImagesFlow() {
 
     if (hasImageVariables && currentStep === 2) {
       return (
-        <div className="space-y-4">
-          <ImageUploadStep
-            uploadedImages={state.uploadedImages}
-            setUploadedImages={state.setUploadedImages}
-            requiredImages={state.extractedVariables?.images || []}
-            csvImageValues={state.csvImageValues}
-            error={state.error}
-            setError={state.setError}
-          />
-          <StorageValidationAlert 
-            validation={storageValidation}
-            isValidating={isValidating}
-          />
-        </div>
+        <ImageUploadStep
+          uploadedImages={state.uploadedImages}
+          setUploadedImages={state.setUploadedImages}
+          requiredImages={state.extractedVariables?.images || []}
+          csvImageValues={state.csvImageValues}
+          error={state.error}
+          setError={state.setError}
+        />
       );
     }
 
