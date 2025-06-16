@@ -4,11 +4,13 @@ import { Stepper } from '@/components/ui/stepper';
 import { useNewBatchWithImagesState } from '@/hooks/useNewBatchWithImagesState';
 import { useStepNavigation } from '@/hooks/useStepNavigation';
 import { useJobCreation } from '@/hooks/useJobCreation';
+import { useStorageValidation } from '@/hooks/useStorageValidation';
 import { StepCard } from './StepCard';
 import { UploadTemplateStep } from './UploadTemplateStep';
 import { ImageUploadStep } from './ImageUploadStep';
 import { UploadCSVStep } from './UploadCSVStep';
 import { ConfirmStep } from './ConfirmStep';
+import { StorageValidationAlert } from './StorageValidationAlert';
 import { StickyNavigation } from './StickyNavigation';
 
 export function NewBatchWithImagesFlow() {
@@ -31,6 +33,15 @@ export function NewBatchWithImagesFlow() {
       ];
 
   const { currentStep, goToNextStep, goToPrevStep } = useStepNavigation(steps.length, state.setError);
+  
+  // Storage validation hook
+  const { storageValidation, isValidating } = useStorageValidation({
+    templateFile: state.templateFile,
+    csvPreview: state.csvPreview,
+    extractedVariables: state.extractedVariables,
+    shouldValidate: hasImageVariables && currentStep >= 2
+  });
+
   const { isStartingJob, jobProgress, handleStartJob } = useJobCreation({
     templateFile: state.templateFile,
     csvFile: state.csvFile,
@@ -51,12 +62,13 @@ export function NewBatchWithImagesFlow() {
     }
     
     if (hasImageVariables && currentStep === 2) {
-      // Image step - check if all required images are uploaded
+      // Image step - check if all required images are uploaded AND storage validation passes
       const missingImages = state.csvImageValues.filter(csvValue => {
         const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
         return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);
       });
-      return missingImages.length > 0;
+      const hasStorageValidationErrors = storageValidation && !storageValidation.isValid;
+      return missingImages.length > 0 || hasStorageValidationErrors || isValidating;
     }
     
     return false;
@@ -97,14 +109,20 @@ export function NewBatchWithImagesFlow() {
 
     if (hasImageVariables && currentStep === 2) {
       return (
-        <ImageUploadStep
-          uploadedImages={state.uploadedImages}
-          setUploadedImages={state.setUploadedImages}
-          requiredImages={state.extractedVariables?.images || []}
-          csvImageValues={state.csvImageValues}
-          error={state.error}
-          setError={state.setError}
-        />
+        <div className="space-y-4">
+          <ImageUploadStep
+            uploadedImages={state.uploadedImages}
+            setUploadedImages={state.setUploadedImages}
+            requiredImages={state.extractedVariables?.images || []}
+            csvImageValues={state.csvImageValues}
+            error={state.error}
+            setError={state.setError}
+          />
+          <StorageValidationAlert 
+            validation={storageValidation}
+            isValidating={isValidating}
+          />
+        </div>
       );
     }
 
@@ -118,6 +136,9 @@ export function NewBatchWithImagesFlow() {
           filenameTemplate={state.filenameTemplate}
           setFilenameTemplate={state.setFilenameTemplate}
           setFilenameError={state.setFilenameError}
+          hasImageVariables={hasImageVariables}
+          missingImageBehavior={state.missingImageBehavior}
+          setMissingImageBehavior={state.setMissingImageBehavior}
         />
       );
     }

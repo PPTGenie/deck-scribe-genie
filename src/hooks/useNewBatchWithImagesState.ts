@@ -1,6 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import type { CsvPreview, TemplateVariables } from '@/types/files';
+import type { MissingImageBehavior } from '@/components/MissingImageOptions';
 
 interface ImageFile {
   file: File;
@@ -19,6 +19,7 @@ export function useNewBatchWithImagesState() {
   const [missingVariables, setMissingVariables] = useState<string[]>([]);
   const [filenameTemplate, setFilenameTemplate] = useState<string>('');
   const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
+  const [missingImageBehavior, setMissingImageBehavior] = useState<MissingImageBehavior>('placeholder');
 
   // When template file is cleared, also clear everything else
   useEffect(() => {
@@ -81,6 +82,7 @@ export function useNewBatchWithImagesState() {
     missingVariables,
     filenameTemplate, setFilenameTemplate,
     filenameError, setFilenameError,
+    missingImageBehavior, setMissingImageBehavior,
     csvImageValues,
   };
 }

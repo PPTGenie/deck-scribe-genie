@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -54,8 +53,20 @@ const updateProgress = async (supabaseAdmin: any, jobId: string, progress: numbe
   await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
 };
 
-// Image processing helper
-const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string) => {
+// Create a red "Missing Image" placeholder as base64
+const createMissingImagePlaceholder = (): Uint8Array => {
+  // Simple 100x100 red rectangle with "Missing Image" text (as a minimal PNG)
+  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVHic7Z3BaxNBFMafJBG0Wi+99OJF8CJ48ODBg+DBg6dCwYMHL4IHL14EL1686MWLFy9evHjx4sGDBw8ePHjw4MGDB0/ePHjwIPjPzOzszOzMzu7MO/N9EEg2ySTZfG/fvPfem5mdJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJElSM1wAcAvATQDXAVwFcBnAJQAXAZwHcA7AWQC/ATgD4DSAUwBOAjgB4DiAYwCOAjgC4DCAQwAOADgI4DeA/QD2AdgLYA+A3QB2AdgJYAeA7QC2AdgKYAuAzQA2AdgIYAOA9QDWA1gHYC2ANQDWA1gLYA2A1QBWAVgJYAWA5QCWAVgKYAmAxQAWAVgIYAGAeQDmApgDYDaAWQBmApgBYDqAaQCmApgCYDKASQAmApgAYDyAcQDGAhgDYDSAUQBGAhgBYDiAYQCGAhgCYDCAQQAGAhgAoB/APgB7AewBsBvALgA7AewAsB3ANgBbAWwBsBnAJgAbAWwAsB7AOgBrAawBsBrAKgArASwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQC3ANwEcAPAdQDXAFwFcAXAZQCXAFwEcAHAeQDnAJwFcAbAaQCnAJwEcALAcQDHABwFcATAYQCHABwEcADAfgD7AOwFsAfAbgC7AOwEsAPAdgDbAGwFsAXAZgCbAGwEsAHAegDrAKwFsAbAagCrAKwEsALAcgDLACwFsATAYgCLACwEsADAfADzANwFcAvATQA3AFwHcA3AVQBXAFwGcAnARQAXAJwHcA7AWQBnAJwGcArASQAnABwHcAzAUQBHABwGcAjAQQAHAOwHsA/AXgB7AOwGsAvATgA7AGwHsA3AVgBbAGwGsAnARgAbAKwHsA7AWgBrAKwGsArASgArACwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQDfA/gOwHcAvo2SJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSpP8A/AE3gM9n/U3k+wAAAABJRU5ErkJggg==';
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+};
+
+// Image processing helper with fallback behavior
+const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string) => {
     try {
       // Normalize the image filename
@@ -66,31 +77,59 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
 
       const imagePath = `${userId}/${templateId}/${normalizedFilename}`;
       
-      console.log(`Fetching image: ${imagePath}`);
+      console.log(`${logPrefix('current')} Fetching image: ${imagePath} (behavior: ${missingImageBehavior})`);
       
       const { data, error } = await supabaseAdmin.storage
         .from('images')
         .download(imagePath);
 
       if (error) {
-        console.warn(`Image not found: ${imagePath}, trying without path...`);
-        // Try alternative path (flat structure)
-        const flatPath = `${userId}/${templateId}/${tagValue}`;
-        const { data: flatData, error: flatError } = await supabaseAdmin.storage
-          .from('images')
-          .download(flatPath);
+        console.warn(`${logPrefix('current')} Image not found: ${imagePath}, trying alternative paths...`);
         
-        if (flatError) {
-          console.error(`Image not found in either location: ${imagePath} or ${flatPath}`);
-          return null; // Return null for missing images rather than throwing
+        // Try alternative paths
+        const alternativePaths = [
+          `${userId}/${templateId}/${tagValue}`, // original filename
+          `${userId}/${normalizedFilename}`, // flat structure
+          normalizedFilename // just filename
+        ];
+
+        for (const altPath of alternativePaths) {
+          const { data: altData, error: altError } = await supabaseAdmin.storage
+            .from('images')
+            .download(altPath);
+          
+          if (!altError && altData) {
+            console.log(`${logPrefix('current')} Found image at alternative path: ${altPath}`);
+            return new Uint8Array(await altData.arrayBuffer());
+          }
+        }
+
+        // Handle missing image based on behavior
+        console.error(`${logPrefix('current')} Image not found in any location: ${tagValue}`);
+        
+        if (missingImageBehavior === 'placeholder') {
+          console.log(`${logPrefix('current')} Using placeholder for missing image: ${tagValue}`);
+          return createMissingImagePlaceholder();
+        } else if (missingImageBehavior === 'skip') {
+          console.log(`${logPrefix('current')} Skipping missing image: ${tagValue}`);
+          return null;
+        } else if (missingImageBehavior === 'fail') {
+          throw new Error(`Missing required image: ${tagValue}`);
         }
         
-        return new Uint8Array(await flatData.arrayBuffer());
+        return null;
       }
 
       return new Uint8Array(await data.arrayBuffer());
     } catch (error) {
-      console.error(`Error loading image ${tagValue}:`, error);
+      console.error(`${logPrefix('current')} Error loading image ${tagValue}:`, error);
+      
+      if (missingImageBehavior === 'fail') {
+        throw error;
+      } else if (missingImageBehavior === 'placeholder') {
+        return createMissingImagePlaceholder();
+      }
+      
       return null;
     }
   };
@@ -187,14 +226,18 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Module ---
-    const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id);
+    // --- 3. Setup Image Module with Missing Image Behavior ---
+    const missingImageBehavior = job.missing_image_behavior || 'placeholder';
+    const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id, missingImageBehavior);
     const imageOptions = createImageOptions(imageGetter);
     const imageModule = new ImageModule(imageOptions);
+
+    console.log(`${logPrefix(job.id)} Using missing image behavior: ${missingImageBehavior}`);
 
     // --- 4. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
+    const imageErrors: string[] = [];
 
     for (const [index, row] of parsedCsv.entries()) {
         const baseProgress = 5;
@@ -203,50 +246,66 @@ serve(async (req) => {
         
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
-        const zip = new PizZip(templateData);
-        const doc = new Docxtemplater(zip, {
-            paragraphLoop: true,
-            linebreaks: true,
-            delimiters: { start: '{{', end: '}}' },
-            nullGetter: () => "",
-            modules: [imageModule]
-        });
+        try {
+          const zip = new PizZip(templateData);
+          const doc = new Docxtemplater(zip, {
+              paragraphLoop: true,
+              linebreaks: true,
+              delimiters: { start: '{{', end: '}}' },
+              nullGetter: () => "",
+              modules: [imageModule]
+          });
 
-        doc.render(row);
-        
-        const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
-        
-        // --- Generate Filename ---
-        let outputFilename;
-        if (job.filename_template) {
-          const renderedName = renderTemplate(job.filename_template, row);
-          const sanitized = sanitizeFilename(renderedName);
-          console.log(`${logPrefix(job.id)} Sanitizing filename: "${renderedName}" -> "${sanitized}"`);
-          outputFilename = sanitized + '.pptx';
-        }
+          doc.render(row);
+          
+          const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
+          
+          // --- Generate Filename ---
+          let outputFilename;
+          if (job.filename_template) {
+            const renderedName = renderTemplate(job.filename_template, row);
+            const sanitized = sanitizeFilename(renderedName);
+            console.log(`${logPrefix(job.id)} Sanitizing filename: "${renderedName}" -> "${sanitized}"`);
+            outputFilename = sanitized + '.pptx';
+          }
 
-        if (!outputFilename || outputFilename === '.pptx') {
-          outputFilename = `row_${index + 1}.pptx`;
-        }
+          if (!outputFilename || outputFilename === '.pptx') {
+            outputFilename = `row_${index + 1}.pptx`;
+          }
 
-        let finalFilename = outputFilename;
-        let duplicateCount = 1;
-        while (usedFilenames.has(finalFilename)) {
-          const nameWithoutExt = outputFilename.replace(/\.pptx$/, '');
-          finalFilename = `${nameWithoutExt}_${duplicateCount}.pptx`;
-          duplicateCount++;
+          let finalFilename = outputFilename;
+          let duplicateCount = 1;
+          while (usedFilenames.has(finalFilename)) {
+            const nameWithoutExt = outputFilename.replace(/\.pptx$/, '');
+            finalFilename = `${nameWithoutExt}_${duplicateCount}.pptx`;
+            duplicateCount++;
+          }
+          usedFilenames.add(finalFilename);
+          
+          const outputPath = `${job.user_id}/${job.id}/${finalFilename}`;
+          
+          const { error: uploadError } = await storageClient.storage
+              .from('outputs')
+              .upload(outputPath, generatedBuffer, { upsert: true, contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+              
+          if (uploadError) throw new Error(`Failed to upload generated file for row ${index + 1}: ${uploadError.message}`);
+          
+          outputPaths.push(outputPath);
+        } catch (error: any) {
+          console.error(`${logPrefix(job.id)} Error processing row ${index + 1}:`, error);
+          
+          if (missingImageBehavior === 'fail') {
+            throw error;
+          } else {
+            imageErrors.push(`Row ${index + 1}: ${error.message}`);
+            // Continue processing other rows
+          }
         }
-        usedFilenames.add(finalFilename);
-        
-        const outputPath = `${job.user_id}/${job.id}/${finalFilename}`;
-        
-        const { error: uploadError } = await storageClient.storage
-            .from('outputs')
-            .upload(outputPath, generatedBuffer, { upsert: true, contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
-            
-        if (uploadError) throw new Error(`Failed to upload generated file for row ${index + 1}: ${uploadError.message}`);
-        
-        outputPaths.push(outputPath);
+    }
+
+    // Log any image errors that occurred
+    if (imageErrors.length > 0) {
+      console.warn(`${logPrefix(job.id)} Image processing errors encountered: ${imageErrors.join('; ')}`);
     }
 
     // --- 5. Create and Upload ZIP Archive (85% to 95%) ---
@@ -289,6 +348,10 @@ serve(async (req) => {
     // --- 6. Finalize Job (95% to 100%) ---
     await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
     
+    const finalErrorMessage = imageErrors.length > 0 
+      ? `Completed with ${imageErrors.length} image processing warnings` 
+      : null;
+    
     await supabaseAdmin
       .from('jobs')
       .update({
@@ -296,12 +359,16 @@ serve(async (req) => {
         progress: 100,
         output_zip: zipPath,
         finished_at: new Date().toISOString(),
+        error_msg: finalErrorMessage,
       })
       .eq('id', job.id);
 
-    console.log(`${logPrefix(job.id)} Job completed successfully at 100%.`);
+    console.log(`${logPrefix(job.id)} Job completed successfully at 100%.${imageErrors.length > 0 ? ` With ${imageErrors.length} image warnings.` : ''}`);
 
-    return new Response(JSON.stringify({ message: `Job ${job.id} completed.` }), {
+    return new Response(JSON.stringify({ 
+      message: `Job ${job.id} completed.`,
+      imageErrors: imageErrors.length > 0 ? imageErrors : undefined 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
