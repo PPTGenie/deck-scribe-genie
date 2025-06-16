@@ -37,6 +37,7 @@ export function NewBatchWithImagesFlow() {
     csvPreview: state.csvPreview,
     filenameTemplate: state.filenameTemplate,
     filenameError: state.filenameError,
+    uploadedImages: state.uploadedImages,
   });
 
   const isNextDisabled = () => {

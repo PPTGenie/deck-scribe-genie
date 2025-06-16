@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -5,12 +6,19 @@ import { toast } from 'sonner';
 import { createJob } from '@/services/jobCreationService';
 import type { CsvPreview } from '@/types/files';
 
+interface ImageFile {
+  file: File;
+  preview: string;
+  normalized: string;
+}
+
 interface useJobCreationProps {
     templateFile: File | null;
     csvFile: File | null;
     csvPreview: CsvPreview | null;
     filenameTemplate: string;
     filenameError: string | null;
+    uploadedImages?: ImageFile[];
 }
 
 export function useJobCreation({
@@ -19,6 +27,7 @@ export function useJobCreation({
     csvPreview,
     filenameTemplate,
     filenameError,
+    uploadedImages = [],
 }: useJobCreationProps) {
     const [isStartingJob, setIsStartingJob] = useState(false);
     const [jobProgress, setJobProgress] = useState<{ value: number; message: string } | null>(null);
@@ -41,6 +50,7 @@ export function useJobCreation({
                 user,
                 csvPreview,
                 filenameTemplate,
+                uploadedImages,
                 setJobProgress,
                 navigate,
             });
