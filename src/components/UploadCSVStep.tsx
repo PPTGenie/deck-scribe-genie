@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import Papa from 'papaparse';
 import { CSVFormattingInfo } from './CSVFormattingInfo';
 import { CSVFileDisplay } from './CSVFileDisplay';
+import { ImageValidationAlert } from './ImageValidationAlert';
+import { validateCSVImages } from '@/utils/imageValidation';
 import type { CsvPreview, TemplateVariables } from '@/types/files';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -41,7 +43,6 @@ export function UploadCSVStep({
 
     const file = files[0];
     if (!file) {
-      // This case can be triggered from FileUpload component on rejection
       setError("Invalid file. We only accept .csv files under 5MB.");
       return;
     }
@@ -58,7 +59,7 @@ export function UploadCSVStep({
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: false, // Prevents automatic type conversion, treating all values as strings.
+      dynamicTyping: false,
       complete: (results) => {
         if (results.errors.length) {
           setError(`Error parsing CSV: ${results.errors[0].message}`);
@@ -84,6 +85,23 @@ export function UploadCSVStep({
             return;
         }
 
+        // Validate image filenames if we have image columns
+        if (extractedVariables?.images && extractedVariables.images.length > 0) {
+          const imageValidation = validateCSVImages(data as Record<string, string>[], extractedVariables.images);
+          
+          if (!imageValidation.isValid) {
+            setError("Invalid image filenames found in CSV. Please fix the issues below before proceeding.");
+            // Still set preview so user can see the validation errors
+            setCsvPreview({ 
+              headers, 
+              data: data as Record<string, string>[],
+              imageValidation 
+            });
+            setCsvFile(file);
+            return;
+          }
+        }
+
         setCsvFile(file);
         setCsvPreview({ headers, data: data as Record<string, string>[] });
       },
@@ -106,13 +124,21 @@ export function UploadCSVStep({
       <CSVFormattingInfo extractedVariables={extractedVariables} />
 
       {csvFile && csvPreview ? (
-        <CSVFileDisplay
+        <div className="space-y-4">
+          {csvPreview.imageValidation && !csvPreview.imageValidation.isValid && (
+            <ImageValidationAlert 
+              invalidFiles={csvPreview.imageValidation.invalidFiles}
+              errors={csvPreview.imageValidation.errors}
+            />
+          )}
+          <CSVFileDisplay
             csvFile={csvFile}
             csvPreview={csvPreview}
             removeFile={removeFile}
             missingVariables={missingVariables}
             extractedVariables={extractedVariables}
-        />
+          />
+        </div>
       ) : (
         <div>
           <FileUpload

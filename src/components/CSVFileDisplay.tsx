@@ -5,11 +5,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CSVPreviewTable } from './CSVPreviewTable';
 import { DismissibleAlert } from './DismissibleAlert';
 import { FileInfoDisplay } from './FileInfoDisplay';
-import type { TemplateVariables } from '@/types/files';
+import type { TemplateVariables, CsvPreview } from '@/types/files';
 
 interface CSVFileDisplayProps {
   csvFile: File;
-  csvPreview: { headers: string[]; data: Record<string, string>[] };
+  csvPreview: CsvPreview;
   removeFile: () => void;
   missingVariables: string[];
   extractedVariables: TemplateVariables | null;
@@ -23,12 +23,13 @@ export function CSVFileDisplay({
   extractedVariables,
 }: CSVFileDisplayProps) {
   const hasMissingVariables = missingVariables.length > 0;
+  const hasImageValidationErrors = csvPreview.imageValidation && !csvPreview.imageValidation.isValid;
 
   return (
     <div className="w-full animate-in fade-in duration-300 space-y-4">
       <FileInfoDisplay file={csvFile} onRemove={removeFile} />
 
-      {!hasMissingVariables && (
+      {!hasMissingVariables && !hasImageValidationErrors && (
         <DismissibleAlert
           storageKey="csv-ready-alert-dismissed"
           className="border-green-500 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-950 dark:text-green-200 [&>svg]:text-green-500"
@@ -36,7 +37,7 @@ export function CSVFileDisplay({
           <CheckCircle2 className="h-4 w-4" />
           <AlertTitle>CSV Ready</AlertTitle>
           <AlertDescription>
-            Your CSV file is ready. All required columns are present.
+            Your CSV file is ready. All required columns are present and image filenames are valid.
           </AlertDescription>
         </DismissibleAlert>
       )}
@@ -53,10 +54,12 @@ export function CSVFileDisplay({
           </AlertDescription>
         </Alert>
       )}
+
       <CSVPreviewTable 
         headers={csvPreview.headers} 
         data={csvPreview.data} 
-        templateVariables={extractedVariables ? [...extractedVariables.text, ...extractedVariables.images] : []} 
+        templateVariables={extractedVariables ? [...extractedVariables.text, ...extractedVariables.images] : []}
+        imageColumns={extractedVariables?.images || []}
       />
     </div>
   );

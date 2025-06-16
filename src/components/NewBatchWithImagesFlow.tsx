@@ -45,8 +45,9 @@ export function NewBatchWithImagesFlow() {
     }
     
     if (currentStep === 1) {
-      // CSV step - check if CSV is uploaded and no missing variables
-      return !state.csvFile || !!state.error || !state.csvPreview || state.missingVariables.length > 0;
+      // CSV step - check if CSV is uploaded, no missing variables, and no image validation errors
+      const hasImageValidationErrors = state.csvPreview?.imageValidation && !state.csvPreview.imageValidation.isValid;
+      return !state.csvFile || !!state.error || !state.csvPreview || state.missingVariables.length > 0 || hasImageValidationErrors;
     }
     
     if (hasImageVariables && currentStep === 2) {
