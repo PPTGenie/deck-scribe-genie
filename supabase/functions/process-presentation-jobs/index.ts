@@ -62,13 +62,15 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// Extract image placeholders and their contexts from slides
+// Extract image placeholders with their complete context BEFORE docxtemplater processes them
 const extractImagePlaceholdersWithContext = (zipContent: Uint8Array, jobId: string): Array<{
   fileName: string; 
   placeholders: Array<{
     placeholder: string;
+    variableName: string;
     shapeXml: string;
-    position: { x: number; y: number; width: number; height: number } | null;
+    position: { x: number; y: number; width: number; height: number };
+    tempMarker: string;
   }>
 }> => {
   console.log(`${logPrefix(jobId)} 🔍 EXTRACTING IMAGE PLACEHOLDERS WITH CONTEXT`);
@@ -79,8 +81,10 @@ const extractImagePlaceholdersWithContext = (zipContent: Uint8Array, jobId: stri
       fileName: string; 
       placeholders: Array<{
         placeholder: string;
+        variableName: string;
         shapeXml: string;
-        position: { x: number; y: number; width: number; height: number } | null;
+        position: { x: number; y: number; width: number; height: number };
+        tempMarker: string;
       }>
     }> = [];
 
@@ -93,8 +97,10 @@ const extractImagePlaceholdersWithContext = (zipContent: Uint8Array, jobId: stri
           const content = file.asText();
           const placeholders: Array<{
             placeholder: string;
+            variableName: string;
             shapeXml: string;
-            position: { x: number; y: number; width: number; height: number } | null;
+            position: { x: number; y: number; width: number; height: number };
+            tempMarker: string;
           }> = [];
           
           // Find shapes containing image placeholders
@@ -106,28 +112,30 @@ const extractImagePlaceholdersWithContext = (zipContent: Uint8Array, jobId: stri
             let match;
             
             while ((match = imagePlaceholderRegex.exec(shape)) !== null) {
-              const placeholder = match[0];
+              const placeholder = match[0]; // {{logo_img}}
+              const variableName = match[1]; // logo_img
               
-              // Extract position information
+              // Extract position information with defaults
               const positionMatch = shape.match(/<a:xfrm[^>]*>.*?<a:off[^>]*x="([^"]*)"[^>]*y="([^"]*)".*?<a:ext[^>]*cx="([^"]*)"[^>]*cy="([^"]*)".*?<\/a:xfrm>/s);
-              let position = null;
+              const position = {
+                x: positionMatch ? parseInt(positionMatch[1]) || 1270000 : 1270000,
+                y: positionMatch ? parseInt(positionMatch[2]) || 1270000 : 1270000,
+                width: positionMatch ? parseInt(positionMatch[3]) || 2540000 : 2540000,
+                height: positionMatch ? parseInt(positionMatch[4]) || 1905000 : 1905000
+              };
               
-              if (positionMatch) {
-                position = {
-                  x: parseInt(positionMatch[1]) || 1270000,
-                  y: parseInt(positionMatch[2]) || 1270000,
-                  width: parseInt(positionMatch[3]) || 2540000,
-                  height: parseInt(positionMatch[4]) || 1905000
-                };
-              }
+              // Create unique temporary marker
+              const tempMarker = `__TEMP_IMG_${crypto.randomUUID().replace(/-/g, '')}__`;
               
               placeholders.push({
                 placeholder,
+                variableName,
                 shapeXml: shape,
-                position
+                position,
+                tempMarker
               });
               
-              console.log(`${logPrefix(jobId)} 🎯 FOUND: ${placeholder} with position ${position ? 'extracted' : 'default'}`);
+              console.log(`${logPrefix(jobId)} 🎯 FOUND: ${placeholder} at position ${position.x},${position.y} size ${position.width}x${position.height}`);
             }
           }
           
@@ -138,13 +146,54 @@ const extractImagePlaceholdersWithContext = (zipContent: Uint8Array, jobId: stri
       }
     }
 
-    console.log(`${logPrefix(jobId)} 📊 CONTEXT EXTRACTION: Found ${slidesWithImagePlaceholders.length} slides with contextual placeholders`);
+    console.log(`${logPrefix(jobId)} 📊 CONTEXT EXTRACTION: Found ${slidesWithImagePlaceholders.length} slides with image placeholders`);
     return slidesWithImagePlaceholders;
     
   } catch (error: any) {
     console.error(`${logPrefix(jobId)} ❌ CONTEXT EXTRACTION ERROR:`, error);
     return [];
   }
+};
+
+// Replace image placeholders with temporary markers BEFORE docxtemplater
+const replaceImagePlaceholdersWithMarkers = (
+  zipContent: Uint8Array, 
+  detectedPlaceholders: Array<{fileName: string; placeholders: Array<any>}>, 
+  jobId: string
+): { zip: any; markerMap: Map<string, any> } => {
+  console.log(`${logPrefix(jobId)} 🔄 REPLACING IMAGE PLACEHOLDERS WITH TEMPORARY MARKERS`);
+  
+  const zip = new PizZip(zipContent);
+  const markerMap = new Map();
+  
+  for (const slideInfo of detectedPlaceholders) {
+    const { fileName, placeholders } = slideInfo;
+    const slideFile = zip.files[fileName];
+    
+    if (!slideFile || slideFile.dir) continue;
+    
+    let slideContent = slideFile.asText();
+    
+    for (const placeholderInfo of placeholders) {
+      const { placeholder, tempMarker, variableName, position } = placeholderInfo;
+      
+      // Replace the image placeholder with temporary marker
+      slideContent = slideContent.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), tempMarker);
+      
+      // Store mapping for later replacement
+      markerMap.set(tempMarker, {
+        variableName,
+        position,
+        fileName
+      });
+      
+      console.log(`${logPrefix(jobId)} 🔄 Replaced ${placeholder} with ${tempMarker}`);
+    }
+    
+    zip.file(fileName, slideContent);
+  }
+  
+  return { zip, markerMap };
 };
 
 // Image storage path resolver
@@ -202,26 +251,19 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
   };
 };
 
-// Advanced image injection with proper XML handling
-const injectImagesIntoSlides = async (
+// Replace temporary markers with actual PowerPoint image XML
+const replaceMarkersWithImages = async (
   zipContent: Uint8Array,
+  markerMap: Map<string, any>,
   data: Record<string, string>,
   imageGetter: any,
   jobId: string,
-  missingImageBehavior: string,
-  detectedPlaceholders: Array<{
-    fileName: string; 
-    placeholders: Array<{
-      placeholder: string;
-      shapeXml: string;
-      position: { x: number; y: number; width: number; height: number } | null;
-    }>
-  }>
+  missingImageBehavior: string
 ): Promise<Uint8Array> => {
-  console.log(`${logPrefix(jobId)} 🎨 ADVANCED IMAGE INJECTION: Processing ${detectedPlaceholders.length} slides`);
+  console.log(`${logPrefix(jobId)} 🎨 REPLACING TEMPORARY MARKERS WITH ACTUAL IMAGES`);
   
-  if (detectedPlaceholders.length === 0) {
-    console.log(`${logPrefix(jobId)} ✅ No image placeholders to process`);
+  if (markerMap.size === 0) {
+    console.log(`${logPrefix(jobId)} ✅ No image markers to process`);
     return zipContent;
   }
   
@@ -230,102 +272,98 @@ const injectImagesIntoSlides = async (
     let modified = false;
     const imagesToAdd: Record<string, Uint8Array> = {};
     let imageCounter = 1;
+    const relationshipsBySlide = new Map();
 
-    // Process each slide
-    for (const slideInfo of detectedPlaceholders) {
-      const { fileName, placeholders } = slideInfo;
-      console.log(`${logPrefix(jobId)} 📄 Processing slide: ${fileName}`);
+    // Process each marker
+    for (const [tempMarker, markerInfo] of markerMap.entries()) {
+      const { variableName, position, fileName } = markerInfo;
+      const imageValue = data[variableName];
       
-      const slideFile = zip.files[fileName];
-      if (!slideFile || slideFile.dir) continue;
-      
-      let slideContent = slideFile.asText();
-      let slideModified = false;
-      
-      // Process each placeholder in this slide
-      for (const placeholderInfo of placeholders) {
-        const { placeholder, shapeXml, position } = placeholderInfo;
-        const variableName = placeholder.replace(/[{}]/g, '');
-        const imageValue = data[variableName];
-        
-        if (!imageValue) {
-          console.log(`${logPrefix(jobId)} ⚠️ No data for ${variableName}`);
-          continue;
-        }
-        
-        console.log(`${logPrefix(jobId)} 🖼️ PROCESSING: ${placeholder} -> ${imageValue}`);
-        
-        try {
-          const imageResult = await imageGetter(imageValue, variableName);
-          
-          if (imageResult && imageResult.buffer) {
-            // Determine image format and extension
-            const isJpeg = imageValue.toLowerCase().includes('.jpg') || imageValue.toLowerCase().includes('.jpeg');
-            const imageExt = isJpeg ? 'jpeg' : 'png';
-            const imageFileName = `image${imageCounter}.${imageExt}`;
-            const relationshipId = `rId${10000 + imageCounter}`;
-            
-            // Add image to media folder
-            imagesToAdd[`ppt/media/${imageFileName}`] = imageResult.buffer;
-            
-            // Use extracted position or defaults
-            const pos = position || { x: 1270000, y: 1270000, width: 2540000, height: 1905000 };
-            
-            // Create proper PowerPoint image XML with correct namespaces
-            const imageXml = `<p:pic>
-              <p:nvPicPr>
-                <p:cNvPr id="${10000 + imageCounter}" name="Picture ${imageCounter}"/>
-                <p:cNvPicPr/>
-                <p:nvPr/>
-              </p:nvPicPr>
-              <p:blipFill>
-                <a:blip r:embed="${relationshipId}"/>
-                <a:stretch>
-                  <a:fillRect/>
-                </a:stretch>
-              </p:blipFill>
-              <p:spPr>
-                <a:xfrm>
-                  <a:off x="${pos.x}" y="${pos.y}"/>
-                  <a:ext cx="${pos.width}" cy="${pos.height}"/>
-                </a:xfrm>
-                <a:prstGeom prst="rect">
-                  <a:avLst/>
-                </a:prstGeom>
-              </p:spPr>
-            </p:pic>`;
-
-            // Replace the entire shape containing the placeholder
-            if (slideContent.includes(shapeXml)) {
-              slideContent = slideContent.replace(shapeXml, imageXml);
-              slideModified = true;
-              console.log(`${logPrefix(jobId)} 🔧 Replaced shape with image: ${imageFileName}`);
-            } else {
-              console.log(`${logPrefix(jobId)} ⚠️ Could not find original shape in slide content`);
-            }
-            
-            // Add relationship
-            const relsFileName = fileName.replace(/slides\/slide(\d+)\.xml/, 'slides/_rels/slide$1.xml.rels');
-            
-            if (zip.files[relsFileName]) {
-              let relsContent = zip.files[relsFileName].asText();
-              const imageRelXml = `<Relationship Id="${relationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${imageFileName}"/>`;
-              relsContent = relsContent.replace('</Relationships>', `  ${imageRelXml}\n</Relationships>`);
-              zip.file(relsFileName, relsContent);
-              console.log(`${logPrefix(jobId)} 🔗 Added relationship: ${relationshipId}`);
-            }
-            
-            imageCounter++;
-          }
-        } catch (error: any) {
-          console.error(`${logPrefix(jobId)} ❌ Error processing ${variableName}:`, error);
-          if (missingImageBehavior === 'fail') throw error;
-        }
+      if (!imageValue) {
+        console.log(`${logPrefix(jobId)} ⚠️ No data for ${variableName}`);
+        continue;
       }
       
-      if (slideModified) {
-        zip.file(fileName, slideContent);
-        modified = true;
+      console.log(`${logPrefix(jobId)} 🖼️ PROCESSING MARKER: ${tempMarker} -> ${variableName}=${imageValue}`);
+      
+      try {
+        const imageResult = await imageGetter(imageValue, variableName);
+        
+        if (imageResult && imageResult.buffer) {
+          // Determine image format
+          const isJpeg = imageValue.toLowerCase().includes('.jpg') || imageValue.toLowerCase().includes('.jpeg');
+          const imageExt = isJpeg ? 'jpeg' : 'png';
+          const imageFileName = `image${imageCounter}.${imageExt}`;
+          const relationshipId = `rId${10000 + imageCounter}`;
+          
+          // Add image to media folder
+          imagesToAdd[`ppt/media/${imageFileName}`] = imageResult.buffer;
+          
+          // Create proper PowerPoint image XML with correct namespaces
+          const imageXml = `<p:pic xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+            <p:nvPicPr>
+              <p:cNvPr id="${10000 + imageCounter}" name="Picture ${imageCounter}"/>
+              <p:cNvPicPr/>
+              <p:nvPr/>
+            </p:nvPicPr>
+            <p:blipFill>
+              <a:blip r:embed="${relationshipId}"/>
+              <a:stretch>
+                <a:fillRect/>
+              </a:stretch>
+            </p:blipFill>
+            <p:spPr>
+              <a:xfrm>
+                <a:off x="${position.x}" y="${position.y}"/>
+                <a:ext cx="${position.width}" cy="${position.height}"/>
+              </a:xfrm>
+              <a:prstGeom prst="rect">
+                <a:avLst/>
+              </a:prstGeom>
+            </p:spPr>
+          </p:pic>`;
+
+          // Replace marker in slide content
+          const slideFile = zip.files[fileName];
+          if (slideFile && !slideFile.dir) {
+            let slideContent = slideFile.asText();
+            slideContent = slideContent.replace(tempMarker, imageXml);
+            zip.file(fileName, slideContent);
+            modified = true;
+            console.log(`${logPrefix(jobId)} 🔧 Replaced marker ${tempMarker} with image: ${imageFileName}`);
+          }
+          
+          // Track relationships for this slide
+          if (!relationshipsBySlide.has(fileName)) {
+            relationshipsBySlide.set(fileName, []);
+          }
+          relationshipsBySlide.get(fileName).push({
+            relationshipId,
+            imageFileName
+          });
+          
+          imageCounter++;
+        }
+      } catch (error: any) {
+        console.error(`${logPrefix(jobId)} ❌ Error processing ${variableName}:`, error);
+        if (missingImageBehavior === 'fail') throw error;
+      }
+    }
+
+    // Add relationships for each slide
+    for (const [slideFileName, relationships] of relationshipsBySlide.entries()) {
+      const relsFileName = slideFileName.replace(/slides\/slide(\d+)\.xml/, 'slides/_rels/slide$1.xml.rels');
+      
+      if (zip.files[relsFileName]) {
+        let relsContent = zip.files[relsFileName].asText();
+        
+        for (const { relationshipId, imageFileName } of relationships) {
+          const imageRelXml = `<Relationship Id="${relationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${imageFileName}"/>`;
+          relsContent = relsContent.replace('</Relationships>', `  ${imageRelXml}\n</Relationships>`);
+        }
+        
+        zip.file(relsFileName, relsContent);
+        console.log(`${logPrefix(jobId)} 🔗 Added ${relationships.length} relationships to ${relsFileName}`);
       }
     }
 
@@ -354,7 +392,7 @@ const injectImagesIntoSlides = async (
     }
 
     if (modified) {
-      console.log(`${logPrefix(jobId)} ✅ IMAGE INJECTION COMPLETE: Generated presentation with images`);
+      console.log(`${logPrefix(jobId)} ✅ IMAGE REPLACEMENT COMPLETE: Generated presentation with ${imageCounter - 1} images`);
       return zip.generate({ type: 'uint8array' });
     } else {
       console.log(`${logPrefix(jobId)} ✅ No modifications needed`);
@@ -362,7 +400,7 @@ const injectImagesIntoSlides = async (
     }
     
   } catch (error: any) {
-    console.error(`${logPrefix(jobId)} ❌ IMAGE INJECTION ERROR:`, error);
+    console.error(`${logPrefix(jobId)} ❌ IMAGE REPLACEMENT ERROR:`, error);
     console.log(`${logPrefix(jobId)} 🔄 Falling back to original content`);
     return zipContent;
   }
@@ -449,8 +487,8 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Extract Image Placeholders with Context ---
-    console.log(`${logPrefix(job.id)} 🔍 EXTRACTING IMAGE PLACEHOLDERS WITH CONTEXT`);
+    // --- 3. Extract Image Placeholders BEFORE docxtemplater ---
+    console.log(`${logPrefix(job.id)} 🔍 STEP 1: EXTRACTING IMAGE PLACEHOLDERS WITH CONTEXT`);
     const detectedImagePlaceholders = extractImagePlaceholdersWithContext(new Uint8Array(templateData), job.id);
 
     // --- 4. Setup Image Configuration ---
@@ -480,44 +518,43 @@ serve(async (req) => {
         try {
           console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
           
-          // Create fresh instances for each presentation
-          const zip = new PizZip(templateData);
+          // STEP 1: Replace image placeholders with temporary markers BEFORE docxtemplater
+          console.log(`${logPrefix(job.id)} 🔄 STEP 2: REPLACING IMAGE PLACEHOLDERS WITH MARKERS`);
+          const { zip: zipWithMarkers, markerMap } = replaceImagePlaceholdersWithMarkers(
+            new Uint8Array(templateData), 
+            detectedImagePlaceholders, 
+            job.id
+          );
           
-          // Split data - text only for docxtemplater
+          // STEP 2: Process text-only with docxtemplater (no image module!)
+          console.log(`${logPrefix(job.id)} 🎨 STEP 3: PROCESSING TEXT WITH DOCXTEMPLATER`);
           const textOnlyData: Record<string, string> = {};
-          
           for (const [key, value] of Object.entries(row)) {
             if (!key.endsWith('_img')) {
               textOnlyData[key] = value;
             }
           }
           
-          console.log(`${logPrefix(job.id)} 📊 TEXT DATA: ${Object.keys(textOnlyData).length} variables`);
-          
-          // Run docxtemplater with text-only data (NO IMAGE MODULE!)
-          const doc = new Docxtemplater(zip, {
+          const doc = new Docxtemplater(zipWithMarkers, {
               paragraphLoop: true,
               linebreaks: true,
               delimiters: { start: '{{', end: '}}' },
               nullGetter: () => "",
-              // NO MODULES! Text processing only
+              // NO IMAGE MODULES - text processing only
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING TEXT TEMPLATE`);
           doc.render(textOnlyData);
-          
-          console.log(`${logPrefix(job.id)} 📦 GENERATING INITIAL OUTPUT`);
           let generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
-          // Now inject images into the remaining placeholders
-          console.log(`${logPrefix(job.id)} 🎨 INJECTING IMAGES`);
-          generatedBuffer = await injectImagesIntoSlides(
-            generatedBuffer, 
-            row, // Full data for image injection
-            imageGetter, 
-            job.id, 
-            missingImageBehavior,
-            detectedImagePlaceholders
+          // STEP 3: Replace temporary markers with actual PowerPoint image XML
+          console.log(`${logPrefix(job.id)} 🎨 STEP 4: REPLACING MARKERS WITH ACTUAL IMAGES`);
+          generatedBuffer = await replaceMarkersWithImages(
+            generatedBuffer,
+            markerMap,
+            row, // Full data including image variables
+            imageGetter,
+            job.id,
+            missingImageBehavior
           );
           
           // Generate filename
