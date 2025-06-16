@@ -63,20 +63,19 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// COMPLETELY REBUILT IMAGE PROCESSING WITH COMPREHENSIVE LOGGING
+// COMPLETELY REBUILT IMAGE PROCESSING SYSTEM
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string) => {
     const jobId = 'current';
-    console.log(`${logPrefix(jobId)} 🚀 IMAGE INJECTION STARTED!`);
-    console.log(`${logPrefix(jobId)} 📋 Input: tagName="${tagName}", tagValue="${tagValue}"`);
+    console.log(`${logPrefix(jobId)} 🖼️ IMAGE MODULE getImage() CALLED!`);
+    console.log(`${logPrefix(jobId)} 📋 Parameters: tagName="${tagName}", tagValue="${tagValue}"`);
     console.log(`${logPrefix(jobId)} 🗂️ Context: userId="${userId}", templateId="${templateId}"`);
     console.log(`${logPrefix(jobId)} ⚙️ Behavior: "${missingImageBehavior}"`);
     
     try {
-      // Primary storage paths that should work based on upload logic
+      // Try different storage paths
       const pathsToTry = [
         `${userId}/${templateId}/${tagValue}`, // Primary: userId/templateId/filename
-        `${userId}/${templateId}/${tagValue.toLowerCase()}`, // Lowercase variant
         `${userId}/${tagValue}`, // Flat structure fallback
         tagValue, // Root level fallback
       ];
@@ -176,6 +175,67 @@ const createImageModule = (imageGetter: any) => {
       return props;
     }
   });
+};
+
+// NEW: Post-processing function to handle image placeholders that weren't processed by the module
+const postProcessImagePlaceholders = async (
+  zipContent: Uint8Array, 
+  data: Record<string, string>, 
+  imageGetter: any,
+  jobId: string
+): Promise<Uint8Array> => {
+  console.log(`${logPrefix(jobId)} 🔄 POST-PROCESSING: Checking for unprocessed image placeholders`);
+  
+  try {
+    const zip = new PizZip(zipContent);
+    let modified = false;
+
+    // Check all files in the zip for image placeholders
+    Object.keys(zip.files).forEach(fileName => {
+      if (fileName.includes('slide') && fileName.endsWith('.xml')) {
+        console.log(`${logPrefix(jobId)} 📄 Checking file: ${fileName}`);
+        
+        const file = zip.files[fileName];
+        if (file && !file.dir) {
+          let content = file.asText();
+          
+          // Look for image placeholders that weren't processed
+          Object.keys(data).forEach(key => {
+            if (key.endsWith('_img')) {
+              const placeholder = `{{${key}}}`;
+              if (content.includes(placeholder)) {
+                console.log(`${logPrefix(jobId)} 🚨 FOUND UNPROCESSED IMAGE PLACEHOLDER: ${placeholder}`);
+                console.log(`${logPrefix(jobId)} 📝 This means the template uses TEXT placeholders, not image content controls`);
+                
+                // Replace with a descriptive message
+                const replacement = `[IMAGE: ${data[key]} - Template needs image content control, not text placeholder]`;
+                content = content.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), replacement);
+                modified = true;
+                
+                console.log(`${logPrefix(jobId)} 🔧 Replaced text placeholder with message: ${replacement}`);
+              }
+            }
+          });
+          
+          if (modified) {
+            zip.files[fileName] = zip.file(fileName, content);
+          }
+        }
+      }
+    });
+
+    if (modified) {
+      console.log(`${logPrefix(jobId)} ✅ POST-PROCESSING: Generated new zip with placeholder replacements`);
+      return zip.generate({ type: 'uint8array' });
+    } else {
+      console.log(`${logPrefix(jobId)} ✅ POST-PROCESSING: No unprocessed placeholders found`);
+      return zipContent;
+    }
+    
+  } catch (error: any) {
+    console.error(`${logPrefix(jobId)} ❌ POST-PROCESSING ERROR:`, error);
+    return zipContent; // Return original on error
+  }
 };
 
 serve(async (req) => {
@@ -317,7 +377,11 @@ serve(async (req) => {
           doc.render(row);
           
           console.log(`${logPrefix(job.id)} 📦 GENERATING OUTPUT FILE for row ${index + 1}`);
-          const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
+          let generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
+          
+          // NEW: Post-process to handle any unprocessed image placeholders
+          console.log(`${logPrefix(job.id)} 🔧 POST-PROCESSING for unhandled image placeholders`);
+          generatedBuffer = await postProcessImagePlaceholders(generatedBuffer, row, imageGetter, job.id);
           
           // Generate filename
           let outputFilename;
