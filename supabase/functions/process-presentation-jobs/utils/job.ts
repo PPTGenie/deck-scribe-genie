@@ -1,5 +1,7 @@
 
 export const claimJob = async (supabaseAdmin: any) => {
+  console.log('Attempting to claim a job...');
+  
   const { data: job, error: claimError } = await supabaseAdmin
     .from('jobs')
     .update({ status: 'processing' })
@@ -16,14 +18,18 @@ export const claimJob = async (supabaseAdmin: any) => {
   if (claimError || !job) {
     if (claimError && claimError.code !== 'PGRST116') {
       console.error('Error claiming job:', claimError);
+    } else {
+      console.log('No queued jobs found.');
     }
     return null;
   }
 
+  console.log(`Successfully claimed job ${job.id}`);
   return job;
 };
 
 export const markJobComplete = async (supabaseAdmin: any, jobId: string, zipPath: string) => {
+  console.log(`Marking job ${jobId} as complete`);
   await supabaseAdmin
     .from('jobs')
     .update({
@@ -36,6 +42,7 @@ export const markJobComplete = async (supabaseAdmin: any, jobId: string, zipPath
 };
 
 export const markJobError = async (supabaseAdmin: any, jobId: string, errorMessage: string) => {
+  console.log(`Marking job ${jobId} as error: ${errorMessage}`);
   await supabaseAdmin
     .from('jobs')
     .update({
