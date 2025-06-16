@@ -62,6 +62,51 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
+// Pre-process template to extract image placeholders before docxtemplater runs
+const extractImagePlaceholders = (zipContent: Uint8Array, jobId: string): Array<{fileName: string, placeholders: string[]}> => {
+  console.log(`${logPrefix(jobId)} 🔍 PRE-PROCESSING: Extracting image placeholders before docxtemplater`);
+  
+  try {
+    const zip = new PizZip(zipContent);
+    const slidesWithImagePlaceholders: Array<{fileName: string, placeholders: string[]}> = [];
+
+    for (const fileName of Object.keys(zip.files)) {
+      if (fileName.includes('slide') && fileName.endsWith('.xml') && !fileName.includes('_rels')) {
+        console.log(`${logPrefix(jobId)} 📄 SCANNING: ${fileName}`);
+        
+        const file = zip.files[fileName];
+        if (file && !file.dir) {
+          let content = file.asText();
+          
+          // Find all image placeholders ({{*_img}}) in this slide
+          const imagePlaceholderRegex = /\{\{([^}]+_img)\}\}/g;
+          const placeholders: string[] = [];
+          let match;
+          
+          while ((match = imagePlaceholderRegex.exec(content)) !== null) {
+            const placeholder = match[0]; // Full placeholder like {{logo_img}}
+            if (!placeholders.includes(placeholder)) {
+              placeholders.push(placeholder);
+              console.log(`${logPrefix(jobId)} 🎯 FOUND IMAGE PLACEHOLDER: ${placeholder} in ${fileName}`);
+            }
+          }
+          
+          if (placeholders.length > 0) {
+            slidesWithImagePlaceholders.push({ fileName, placeholders });
+          }
+        }
+      }
+    }
+
+    console.log(`${logPrefix(jobId)} 📊 PRE-PROCESS SUMMARY: Found ${slidesWithImagePlaceholders.length} slides with image placeholders`);
+    return slidesWithImagePlaceholders;
+    
+  } catch (error: any) {
+    console.error(`${logPrefix(jobId)} ❌ PRE-PROCESS ERROR:`, error);
+    return [];
+  }
+};
+
 // Image storage path resolver
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string) => {
@@ -176,15 +221,21 @@ const createImageModule = (imageGetter: any) => {
   });
 };
 
-// Advanced image injection for text placeholders
+// Advanced image injection for text placeholders - now works on pre-identified placeholders
 const injectImagesIntoSlides = async (
   zipContent: Uint8Array,
   data: Record<string, string>,
   imageGetter: any,
   jobId: string,
-  missingImageBehavior: string
+  missingImageBehavior: string,
+  detectedPlaceholders: Array<{fileName: string, placeholders: string[]}>
 ): Promise<Uint8Array> => {
-  console.log(`${logPrefix(jobId)} 🎨 ADVANCED IMAGE INJECTION: Processing text placeholders`);
+  console.log(`${logPrefix(jobId)} 🎨 ADVANCED IMAGE INJECTION: Processing ${detectedPlaceholders.length} slides with image placeholders`);
+  
+  if (detectedPlaceholders.length === 0) {
+    console.log(`${logPrefix(jobId)} ✅ No image placeholders to process - returning original`);
+    return zipContent;
+  }
   
   try {
     const zip = new PizZip(zipContent);
@@ -192,79 +243,78 @@ const injectImagesIntoSlides = async (
     const imagesToAdd: Record<string, Uint8Array> = {};
     let imageCounter = 1;
 
-    // Step 1: Identify and collect all image placeholders
-    const imageReplacements: Array<{fileName: string, placeholder: string, imageData: string, relationshipId: string}> = [];
+    // Step 1: Process each slide with detected placeholders
+    const imageReplacements: Array<{fileName: string, placeholder: string, imageData: string, relationshipId: string, imageFileName: string}> = [];
 
-    for (const fileName of Object.keys(zip.files)) {
-      if (fileName.includes('slide') && fileName.endsWith('.xml') && !fileName.includes('_rels')) {
-        console.log(`${logPrefix(jobId)} 📄 Analyzing slide: ${fileName}`);
+    for (const slideInfo of detectedPlaceholders) {
+      const { fileName, placeholders } = slideInfo;
+      console.log(`${logPrefix(jobId)} 📄 Processing slide: ${fileName} with ${placeholders.length} image placeholders`);
+      
+      for (const placeholder of placeholders) {
+        // Extract variable name from placeholder (e.g., "logo_img" from "{{logo_img}}")
+        const variableName = placeholder.replace(/[{}]/g, '');
+        const imageValue = data[variableName];
         
-        const file = zip.files[fileName];
-        if (file && !file.dir) {
-          let content = file.asText();
+        if (!imageValue) {
+          console.log(`${logPrefix(jobId)} ⚠️ No data for image variable: ${variableName}`);
+          continue;
+        }
+        
+        console.log(`${logPrefix(jobId)} 🖼️ PROCESSING IMAGE PLACEHOLDER: ${placeholder} -> ${imageValue}`);
+        
+        try {
+          // Get the image data
+          const imageBuffer = await imageGetter(imageValue, variableName);
           
-          // Find all image placeholders in this slide
-          for (const key of Object.keys(data)) {
-            if (key.endsWith('_img')) {
-              const placeholder = `{{${key}}}`;
-              if (content.includes(placeholder)) {
-                console.log(`${logPrefix(jobId)} 🖼️ FOUND IMAGE PLACEHOLDER: ${placeholder} in ${fileName}`);
-                
-                try {
-                  // Get the image data
-                  const imageBuffer = await imageGetter(data[key], key);
-                  
-                  if (imageBuffer) {
-                    const imageFileName = `image${imageCounter}.png`;
-                    const relationshipId = `rId${10000 + imageCounter}`; // Use high numbers to avoid conflicts
-                    
-                    imagesToAdd[`ppt/media/${imageFileName}`] = imageBuffer;
-                    imageReplacements.push({
-                      fileName,
-                      placeholder,
-                      imageData: data[key],
-                      relationshipId
-                    });
-                    
-                    console.log(`${logPrefix(jobId)} ✅ Image prepared: ${data[key]} -> ${imageFileName} (${relationshipId})`);
-                    imageCounter++;
-                  } else {
-                    console.log(`${logPrefix(jobId)} ⚠️ No image data for ${placeholder}`);
-                    
-                    if (missingImageBehavior === 'placeholder') {
-                      const placeholderBuffer = createMissingImagePlaceholder();
-                      const imageFileName = `placeholder${imageCounter}.png`;
-                      const relationshipId = `rId${10000 + imageCounter}`;
-                      
-                      imagesToAdd[`ppt/media/${imageFileName}`] = placeholderBuffer;
-                      imageReplacements.push({
-                        fileName,
-                        placeholder,
-                        imageData: `[Missing: ${data[key]}]`,
-                        relationshipId
-                      });
-                      
-                      imageCounter++;
-                    }
-                  }
-                } catch (error: any) {
-                  console.error(`${logPrefix(jobId)} ❌ Error processing image ${key}:`, error);
-                  
-                  if (missingImageBehavior === 'fail') {
-                    throw error;
-                  }
-                }
-              }
+          if (imageBuffer) {
+            const imageFileName = `image${imageCounter}.png`;
+            const relationshipId = `rId${10000 + imageCounter}`; // Use high numbers to avoid conflicts
+            
+            imagesToAdd[`ppt/media/${imageFileName}`] = imageBuffer;
+            imageReplacements.push({
+              fileName,
+              placeholder,
+              imageData: imageValue,
+              relationshipId,
+              imageFileName
+            });
+            
+            console.log(`${logPrefix(jobId)} ✅ Image prepared: ${imageValue} -> ${imageFileName} (${relationshipId})`);
+            imageCounter++;
+          } else {
+            console.log(`${logPrefix(jobId)} ⚠️ No image data for ${placeholder}`);
+            
+            if (missingImageBehavior === 'placeholder') {
+              const placeholderBuffer = createMissingImagePlaceholder();
+              const imageFileName = `placeholder${imageCounter}.png`;
+              const relationshipId = `rId${10000 + imageCounter}`;
+              
+              imagesToAdd[`ppt/media/${imageFileName}`] = placeholderBuffer;
+              imageReplacements.push({
+                fileName,
+                placeholder,
+                imageData: `[Missing: ${imageValue}]`,
+                relationshipId,
+                imageFileName
+              });
+              
+              imageCounter++;
             }
+          }
+        } catch (error: any) {
+          console.error(`${logPrefix(jobId)} ❌ Error processing image ${variableName}:`, error);
+          
+          if (missingImageBehavior === 'fail') {
+            throw error;
           }
         }
       }
     }
 
-    console.log(`${logPrefix(jobId)} 📊 Found ${imageReplacements.length} image placeholders to replace`);
+    console.log(`${logPrefix(jobId)} 📊 Prepared ${imageReplacements.length} image replacements`);
 
     if (imageReplacements.length === 0) {
-      console.log(`${logPrefix(jobId)} ✅ No image placeholders found - returning original`);
+      console.log(`${logPrefix(jobId)} ✅ No images to inject - returning original`);
       return zipContent;
     }
 
@@ -278,12 +328,18 @@ const injectImagesIntoSlides = async (
     const processedSlides = new Set<string>();
     
     for (const replacement of imageReplacements) {
-      const { fileName, placeholder, relationshipId } = replacement;
+      const { fileName, placeholder, relationshipId, imageFileName } = replacement;
       
       // Process slide content
       const slideFile = zip.files[fileName];
       if (slideFile && !slideFile.dir) {
         let slideContent = slideFile.asText();
+        
+        // Verify the placeholder still exists
+        if (!slideContent.includes(placeholder)) {
+          console.log(`${logPrefix(jobId)} ⚠️ Placeholder ${placeholder} not found in ${fileName} - may have been processed by docxtemplater`);
+          continue;
+        }
         
         // Create proper PowerPoint image XML
         const imageXml = `
@@ -330,7 +386,7 @@ const injectImagesIntoSlides = async (
         let relsContent = zip.files[relsFileName].asText();
         
         // Add image relationship
-        const imageRelXml = `<Relationship Id="${relationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${Object.keys(imagesToAdd)[0].split('/').pop()}"/>`;
+        const imageRelXml = `<Relationship Id="${relationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${imageFileName}"/>`;
         
         // Insert before closing tag
         relsContent = relsContent.replace('</Relationships>', `  ${imageRelXml}\n</Relationships>`);
@@ -457,7 +513,11 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Configuration ---
+    // --- 3. PRE-PROCESS: Extract Image Placeholders ---
+    console.log(`${logPrefix(job.id)} 🔍 STEP 1: PRE-PROCESSING TEMPLATE FOR IMAGE PLACEHOLDERS`);
+    const detectedImagePlaceholders = extractImagePlaceholders(new Uint8Array(templateData), job.id);
+
+    // --- 4. Setup Image Configuration ---
     const missingImageBehavior = job.missing_image_behavior || 'placeholder';
     console.log(`${logPrefix(job.id)} 🎯 IMAGE PROCESSING SETUP: behavior="${missingImageBehavior}"`);
     
@@ -468,7 +528,7 @@ serve(async (req) => {
       missingImageBehavior
     );
 
-    // --- 4. Process Each Row and Generate Presentations ---
+    // --- 5. Process Each Row and Generate Presentations ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
     const processingErrors: string[] = [];
@@ -486,10 +546,26 @@ serve(async (req) => {
           console.log(`${logPrefix(job.id)} 📝 Row data keys:`, Object.keys(row));
           console.log(`${logPrefix(job.id)} 📝 Row data values:`, Object.values(row));
           
-          // CRITICAL: Create fresh instances for each presentation
+          // STEP 1: Create fresh instances for each presentation
           console.log(`${logPrefix(job.id)} 📦 Creating fresh PizZip from template data`);
           const zip = new PizZip(templateData);
           
+          // STEP 2: Split data - remove image variables for docxtemplater, keep them for post-processing
+          const textOnlyData: Record<string, string> = {};
+          const imageData: Record<string, string> = {};
+          
+          for (const [key, value] of Object.entries(row)) {
+            if (key.endsWith('_img')) {
+              imageData[key] = value;
+              console.log(`${logPrefix(job.id)} 🖼️ SEPARATED IMAGE VAR: ${key} = ${value}`);
+            } else {
+              textOnlyData[key] = value;
+            }
+          }
+          
+          console.log(`${logPrefix(job.id)} 📊 DATA SPLIT: ${Object.keys(textOnlyData).length} text vars, ${Object.keys(imageData).length} image vars`);
+          
+          // STEP 3: Run docxtemplater with text-only data (preserves image placeholders)
           console.log(`${logPrefix(job.id)} 🔧 Creating image module for presentation ${index + 1}`);
           const imageModule = createImageModule(imageGetter);
           
@@ -502,16 +578,23 @@ serve(async (req) => {
               modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING TEMPLATE with data for row ${index + 1}`);
-          console.log(`${logPrefix(job.id)} 📊 Template data being passed:`, row);
-          doc.render(row);
+          console.log(`${logPrefix(job.id)} 🎨 RENDERING TEMPLATE with TEXT-ONLY data for row ${index + 1}`);
+          console.log(`${logPrefix(job.id)} 📊 Text data being passed:`, textOnlyData);
+          doc.render(textOnlyData);
           
           console.log(`${logPrefix(job.id)} 📦 GENERATING OUTPUT FILE for row ${index + 1}`);
           let generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
-          // NEW: Advanced image injection for text placeholders
-          console.log(`${logPrefix(job.id)} 🎨 INJECTING IMAGES into text placeholders`);
-          generatedBuffer = await injectImagesIntoSlides(generatedBuffer, row, imageGetter, job.id, missingImageBehavior);
+          // STEP 4: Now inject images into the remaining placeholders
+          console.log(`${logPrefix(job.id)} 🎨 INJECTING IMAGES into preserved placeholders`);
+          generatedBuffer = await injectImagesIntoSlides(
+            generatedBuffer, 
+            { ...textOnlyData, ...imageData }, // Full data for image injection
+            imageGetter, 
+            job.id, 
+            missingImageBehavior,
+            detectedImagePlaceholders
+          );
           
           // Generate filename
           let outputFilename;
@@ -572,7 +655,7 @@ serve(async (req) => {
       console.warn(`${logPrefix(job.id)} ⚠️ Processing errors encountered: ${processingErrors.join('; ')}`);
     }
 
-    // --- 5. Create and Upload ZIP Archive ---
+    // --- 6. Create and Upload ZIP Archive ---
     await updateProgress(supabaseAdmin, job.id, 85, `Creating ZIP with ${outputPaths.length} presentations...`);
     
     const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
@@ -613,7 +696,7 @@ serve(async (req) => {
 
     if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
 
-    // --- 6. Finalize Job ---
+    // --- 7. Finalize Job ---
     await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
     
     const finalErrorMessage = processingErrors.length > 0 
