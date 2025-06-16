@@ -48,14 +48,20 @@ export const createImageOptions = (imageGetter: any, imageVariables: string[] = 
     centered: false,
     getImage: imageGetter,
     getSize: () => [150, 150], // Default size in pixels
-    // Configure which variables should be treated as images
-    getProps: (tagName: string) => {
+    // This function determines if a variable should be treated as an image
+    getProps: (tagName: string, tagValue: string, meta: any) => {
       const isImageVariable = imageVariables.includes(tagName) || tagName.endsWith('_img');
       console.log(`Variable ${tagName} is image variable: ${isImageVariable}`);
-      return isImageVariable ? { 
-        centered: false,
-        getSize: () => [150, 150]
-      } : null;
+      
+      if (isImageVariable) {
+        return {
+          centered: false,
+          getSize: () => [150, 150]
+        };
+      }
+      
+      // Return false/null for non-image variables so they're processed as text
+      return false;
     }
   };
 };

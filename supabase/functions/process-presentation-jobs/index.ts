@@ -112,8 +112,26 @@ serve(async (req) => {
 
         const zip = new PizZip(templateData);
         
-        // Create a fresh ImageModule instance for each presentation with proper configuration
-        const imageModule = new ImageModule(imageOptions);
+        // Create a fresh ImageModule instance for each presentation with specific configuration
+        const imageModule = new ImageModule({
+          centered: false,
+          getImage: imageGetter,
+          getSize: () => [150, 150],
+          getProps: (tagName: string, tagValue: string, meta: any) => {
+            const isImageVariable = imageVariables.includes(tagName);
+            console.log(`${logPrefix(job.id)} Checking if ${tagName} is image variable: ${isImageVariable}`);
+            
+            if (isImageVariable) {
+              console.log(`${logPrefix(job.id)} Processing ${tagName} as image with value: ${tagValue}`);
+              return {
+                centered: false,
+                getSize: () => [150, 150]
+              };
+            }
+            
+            return false; // Not an image variable
+          }
+        });
         
         const doc = new Docxtemplater(zip, {
             paragraphLoop: true,
