@@ -54,7 +54,7 @@ const updateProgress = async (supabaseAdmin: any, jobId: string, progress: numbe
 
 // Create a red "Missing Image" placeholder as base64
 const createMissingImagePlaceholder = (): Uint8Array => {
-  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVHic7Z3BaxNBFMafJBG0Wi+99OJF8CJ48ODBg+DBg6dCwYMHL4IHL1686MWLFy9evHjx4sGDBw8ePHjw4MGDB0/ePHjwIPjPzOzszOzMzu7MO/N9EEg2ySTZfG/fvPfem5mdJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJElSM1wAcAvATQDXAVwFcBnAJQAXAZwHcA7AWQC/ATgD4DSAUwBOAjgB4DiAYwCOAjgC4DCAQwAOADgI4DeA/QD2AdgLYA+A3QB2AdgJYAeA7QC2AdgKYAuAzQA2AdgIYAOA9QDWA1gHYC2ANQDWA1gLYA2A1QBWAVgJYAWA5QCWAVgKYAmAxQAWAVgIYAGAeQDmApgDYDaAWQBmApgBYDqAaQCmApgCYDKASQAmApgAYDyAcQDGAhgDYDSAUQBGAhgBYDiAYQCGAhgCYDCAQQAGAhgAoB/APgB7AewBsBvALgA7AewAsB3ANgBbAWwBsBnAJgAbAWwAsB7AOgBrAawBsBrAKgArASwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQC3ANwEcAPAdQDXAFwFcAXAZQCXAFwEcAHAeQDnAJwFcAbAaQCnAJwEcALAcQDHABwFcATAYQCHABwEcADAfgD7AOwFsAfAbgC7AOwEsAPAdgDbAGwFsAXAZgCbAGwEsAHAegDrAKwFsAbAagCrAKwEsALAcgDLACwFsATAYgCLACwEsADAfADzANwFcAvATQA3AFwHcA3AVQBXAFwGcAnARQAXAJwHcA7AWQBnAJwGcArASQAnABwHcAzAUQBHABwGcAjAQQAHAOwHsA/AXgB7AOwGsAvATgA7AGwHsA3AVgBbAGwGsAnARgAbAKwHsA7AWgBrAKwGsArASgArACwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQDfA/gOwHcAvo2SJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSpP8A/AE3gM9n/U3k+wAAAABJRU5ErkJggg==';
+  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVHic7Z3BaxNBFMafJBG0Wi+99OJF8CJ48ODBg+DBg6dCwYMHL4IHL1686MWLFy9evHjx4sGDBw8ePHjw4MGDB0/ePHjwIPjPzOzszOzMzu7MO/N9EEg2ySTZfG/fvPfem5ndJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJElSM1wAcAvATQDXAVwFcBnAJQAXAZwHcA7AWQC/ATgD4DSAUwBOAjgB4DiAYwCOAjgC4DCAQwAOADgI4DeA/QD2AdgLYA+A3QB2AdgJYAeA7QC2AdgKYAuAzQA2AdgIYAOA9QDWA1gHYC2ANQDWA1gLYA2A1QBWAVgJYAWA5QCWAVgKYAmAxQAWAVgIYAGAeQDmApgDYDaAWQBmApgBYDqAaQCmApgCYDKASQAmApgAYDyAcQDGAhgDYDSAUQBGAhgBYDiAYQCGAhgCYDCAQQAGAhgAoB/APgB7AewBsBvALgA7AewAsB3ANgBbAWwBsBnAJgAbAWwAsB7AOgBrAawBsBrAKgArASwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQC3ANwEcAPAdQDXAFwFcAXAZQCXAFwEcAHAeQDnAJwFcAbAaQCnAJwEcALAcQDHABwFcATAYQCHABwEcADAfgD7AOwFsAfAbgC7AOwEsAPAdgDbAGwFsAXAZgCbAGwEsAHAegDrAKwFsAbAagCrAKwEsALAcgDLACwFsATAYgCLACwEsADAfADzANwFcAvATQA3AFwHcA3AVQBXAFwGcAnARQAXAJwHcA7AWQBnAJwGcArASQAnABwHcAzAUQBHABwGcAjAQQAHAOwHsA/AXgB7AOwGsAvATgA7AGwHsA3AVgBbAGwGsAnARgAbAKwHsA7AWgBrAKwGsArASgArACwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQDfA/gOwHcAvo2SJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSpP8A/AE3gM9n/U3k+wAAAABJRU5ErkJggg==';
   const binaryString = atob(base64);
   const bytes = new Uint8Array(binaryString.length);
   for (let i = 0; i < binaryString.length; i++) {
@@ -63,86 +63,109 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// Enhanced image processing with comprehensive path resolution
+// Enhanced image processing with better path resolution and logging
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string) => {
-    console.log(`${logPrefix('current')} Processing image: tagName="${tagName}", tagValue="${tagValue}"`);
+    const jobId = 'current';
+    console.log(`${logPrefix(jobId)} 🖼️ Processing image: tagName="${tagName}", tagValue="${tagValue}"`);
+    console.log(`${logPrefix(jobId)} 📁 Storage context: userId="${userId}", templateId="${templateId}"`);
+    console.log(`${logPrefix(jobId)} ⚙️ Missing image behavior: "${missingImageBehavior}"`);
     
     try {
-      // Normalize the image filename
-      const normalizedFilename = tagValue.toLowerCase()
-        .replace(/\.jpeg$/i, '.jpg')
-        .replace(/\.png$/i, '.png')
-        .replace(/\.jpg$/i, '.jpg');
+      // Normalize the image filename for consistent matching
+      const normalizedFilename = tagValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
+      console.log(`${logPrefix(jobId)} 🔄 Normalized filename: "${tagValue}" → "${normalizedFilename}"`);
 
-      // Try multiple path patterns
+      // Try the most likely storage paths first - focusing on the actual structure
       const pathsToTry = [
+        // Primary path pattern: userId/templateId/filename
         `${userId}/${templateId}/${normalizedFilename}`,
-        `${userId}/${templateId}/${tagValue}`, // original filename
-        `${userId}/${normalizedFilename}`, // flat structure
-        normalizedFilename, // just filename
+        `${userId}/${templateId}/${tagValue}`, // original case
+        
+        // Secondary patterns if images are uploaded differently
+        `${userId}/${normalizedFilename}`, // flat user structure
+        `images/${userId}/${templateId}/${normalizedFilename}`, // with images prefix
+        `images/${userId}/${normalizedFilename}`, // flat images structure
+        
+        // Fallback patterns
+        normalizedFilename, // just filename in root
+        `uploads/${userId}/${normalizedFilename}`, // uploads structure
         `${userId}/${templateId}/${tagValue.toLowerCase()}`, // lowercase original
-        `images/${normalizedFilename}`, // images folder structure
-        `uploads/${userId}/${normalizedFilename}` // uploads structure
       ];
 
-      console.log(`${logPrefix('current')} Trying ${pathsToTry.length} path patterns for image: ${tagValue}`);
+      console.log(`${logPrefix(jobId)} 🔍 Will try ${pathsToTry.length} storage paths for: ${tagValue}`);
       
-      for (const imagePath of pathsToTry) {
-        console.log(`${logPrefix('current')} Attempting path: ${imagePath}`);
+      for (const [index, imagePath] of pathsToTry.entries()) {
+        console.log(`${logPrefix(jobId)} 📂 Attempt ${index + 1}/${pathsToTry.length}: ${imagePath}`);
         
-        const { data, error } = await supabaseAdmin.storage
-          .from('images')
-          .download(imagePath);
+        try {
+          const { data, error } = await supabaseAdmin.storage
+            .from('images')
+            .download(imagePath);
 
-        if (!error && data) {
-          console.log(`${logPrefix('current')} ✅ Found image at: ${imagePath}`);
-          return new Uint8Array(await data.arrayBuffer());
-        } else {
-          console.log(`${logPrefix('current')} ❌ Failed at path: ${imagePath} - ${error?.message || 'No data'}`);
+          if (!error && data) {
+            const imageSize = data.size;
+            console.log(`${logPrefix(jobId)} ✅ SUCCESS: Found image at "${imagePath}" (${imageSize} bytes)`);
+            return new Uint8Array(await data.arrayBuffer());
+          } else {
+            console.log(`${logPrefix(jobId)} ❌ Failed at "${imagePath}": ${error?.message || 'No data returned'}`);
+          }
+        } catch (pathError: any) {
+          console.log(`${logPrefix(jobId)} 💥 Exception at "${imagePath}": ${pathError.message}`);
         }
       }
 
-      // Handle missing image based on behavior
-      console.error(`${logPrefix('current')} 🚨 Image not found in any location: ${tagValue}`);
+      // No image found in any location - handle based on behavior
+      console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: "${tagValue}" not found in any of ${pathsToTry.length} locations`);
+      console.log(`${logPrefix(jobId)} 🔧 Applying missing image behavior: "${missingImageBehavior}"`);
       
       if (missingImageBehavior === 'placeholder') {
-        console.log(`${logPrefix('current')} Using placeholder for missing image: ${tagValue}`);
+        console.log(`${logPrefix(jobId)} 🖼️ Using red placeholder for missing image: ${tagValue}`);
         return createMissingImagePlaceholder();
       } else if (missingImageBehavior === 'skip') {
-        console.log(`${logPrefix('current')} Skipping missing image: ${tagValue}`);
+        console.log(`${logPrefix(jobId)} ⏭️ Skipping missing image: ${tagValue}`);
         return null;
       } else if (missingImageBehavior === 'fail') {
-        throw new Error(`Missing required image: ${tagValue}`);
+        const errorMsg = `Missing required image: ${tagValue}`;
+        console.error(`${logPrefix(jobId)} 💀 FAILING JOB: ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
-      return createMissingImagePlaceholder(); // Default fallback
+      // Default fallback to placeholder
+      console.log(`${logPrefix(jobId)} 🔄 Defaulting to placeholder for: ${tagValue}`);
+      return createMissingImagePlaceholder();
 
-    } catch (error) {
-      console.error(`${logPrefix('current')} Error loading image ${tagValue}:`, error);
+    } catch (error: any) {
+      console.error(`${logPrefix(jobId)} 💥 CRITICAL ERROR processing image ${tagValue}:`, error);
       
       if (missingImageBehavior === 'fail') {
         throw error;
       } else if (missingImageBehavior === 'placeholder') {
+        console.log(`${logPrefix(jobId)} 🆘 Using placeholder due to error for: ${tagValue}`);
         return createMissingImagePlaceholder();
       }
       
+      console.log(`${logPrefix(jobId)} ⏭️ Skipping due to error for: ${tagValue}`);
       return null;
     }
   };
 };
 
-// Enhanced image module configuration with proper getProps
+// Enhanced image module configuration
 const createImageModule = (imageGetter: any) => {
   return new ImageModule({
     centered: false,
     getImage: imageGetter,
-    getSize: () => [150, 150], // Default size in pixels
+    getSize: (img: any, tagValue: string, tagName: string) => {
+      console.log(`${logPrefix('current')} 📏 getSize called for: ${tagName} = ${tagValue}`);
+      // Return appropriate size for PowerPoint slides (in pixels)
+      return [200, 150]; // Width x Height in pixels
+    },
     getProps: (img: any, tagValue: string, tagName: string) => {
-      console.log(`${logPrefix('current')} getProps called for: ${tagName} = ${tagValue}`);
+      console.log(`${logPrefix('current')} ⚙️ getProps called for: ${tagName} = ${tagValue}`);
       return {
         centered: false,
-        fit: 'contain'
+        fit: 'contain' // Ensure image fits within bounds without distortion
       };
     }
   });
@@ -183,7 +206,13 @@ serve(async (req) => {
     });
   }
 
-  console.log(`${logPrefix(job.id)} Claimed job.`);
+  console.log(`${logPrefix(job.id)} 🎯 Claimed job successfully`);
+  console.log(`${logPrefix(job.id)} 📋 Job details:`, {
+    id: job.id,
+    userId: job.templates.user_id,
+    templateId: job.template_id,
+    missingImageBehavior: job.missing_image_behavior || 'placeholder'
+  });
   
   const storageClient = supabaseAdmin;
 
@@ -213,11 +242,11 @@ serve(async (req) => {
     const headers = allRows[0];
     const dataRows = allRows.slice(1);
 
-    console.log(`${logPrefix(job.id)} Found headers: [${headers.join(', ')}]`);
+    console.log(`${logPrefix(job.id)} 📊 CSV structure: headers=[${headers.join(', ')}], rows=${dataRows.length}`);
 
     const parsedCsv: Record<string, string>[] = dataRows.map((row, rowIndex) => {
       if (row.length !== headers.length) {
-        console.warn(`${logPrefix(job.id)} Warning: Row ${rowIndex + 2} has ${row.length} columns, but header has ${headers.length}. Data may be inconsistent.`);
+        console.warn(`${logPrefix(job.id)} ⚠️ Row ${rowIndex + 2} has ${row.length} columns, but header has ${headers.length}`);
       }
       const rowData: Record<string, string> = {};
       headers.forEach((header, index) => {
@@ -227,15 +256,20 @@ serve(async (req) => {
     });
     
     const totalRows = parsedCsv.length;
-    console.log(`${logPrefix(job.id)} Successfully parsed ${totalRows} data rows.`);
+    console.log(`${logPrefix(job.id)} ✅ Successfully parsed ${totalRows} data rows`);
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Configuration ---
+    // --- 3. Setup Image Configuration with proper behavior ---
     const missingImageBehavior = job.missing_image_behavior || 'placeholder';
-    const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id, missingImageBehavior);
-
-    console.log(`${logPrefix(job.id)} Using missing image behavior: ${missingImageBehavior}`);
+    console.log(`${logPrefix(job.id)} 🎯 Image processing setup: behavior="${missingImageBehavior}"`);
+    
+    const imageGetter = createImageGetter(
+      supabaseAdmin, 
+      job.templates.user_id, 
+      job.template_id, 
+      missingImageBehavior
+    );
 
     // --- 4. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
@@ -252,11 +286,13 @@ serve(async (req) => {
 
         try {
           console.log(`${logPrefix(job.id)} 🔄 Starting presentation ${index + 1}/${totalRows}`);
+          console.log(`${logPrefix(job.id)} 📝 Row data:`, Object.keys(row));
           
           // Create fresh instances for each presentation to avoid module reuse issues
           const zip = new PizZip(templateData);
           const imageModule = createImageModule(imageGetter);
           
+          console.log(`${logPrefix(job.id)} 🔧 Configuring docxtemplater with image module`);
           const doc = new Docxtemplater(zip, {
               paragraphLoop: true,
               linebreaks: true,
@@ -265,10 +301,10 @@ serve(async (req) => {
               modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 📝 Rendering data for row ${index + 1}:`, Object.keys(row));
+          console.log(`${logPrefix(job.id)} 🎨 Rendering template with data for row ${index + 1}`);
           doc.render(row);
           
-          console.log(`${logPrefix(job.id)} 📦 Generating ZIP for row ${index + 1}`);
+          console.log(`${logPrefix(job.id)} 📦 Generating output file for row ${index + 1}`);
           const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
           // --- Generate Filename ---
@@ -276,7 +312,7 @@ serve(async (req) => {
           if (job.filename_template) {
             const renderedName = renderTemplate(job.filename_template, row);
             const sanitized = sanitizeFilename(renderedName);
-            console.log(`${logPrefix(job.id)} Sanitizing filename: "${renderedName}" -> "${sanitized}"`);
+            console.log(`${logPrefix(job.id)} 📝 Filename: "${renderedName}" → "${sanitized}"`);
             outputFilename = sanitized + '.pptx';
           }
 
@@ -295,10 +331,13 @@ serve(async (req) => {
           
           const outputPath = `${job.user_id}/${job.id}/${finalFilename}`;
           
-          console.log(`${logPrefix(job.id)} ⬆️ Uploading presentation ${index + 1} to: ${outputPath}`);
+          console.log(`${logPrefix(job.id)} ⬆️ Uploading to storage: ${outputPath}`);
           const { error: uploadError } = await storageClient.storage
               .from('outputs')
-              .upload(outputPath, generatedBuffer, { upsert: true, contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+              .upload(outputPath, generatedBuffer, { 
+                upsert: true, 
+                contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 
+              });
               
           if (uploadError) throw new Error(`Failed to upload generated file for row ${index + 1}: ${uploadError.message}`);
           
@@ -338,7 +377,7 @@ serve(async (req) => {
     console.log(`${logPrefix(job.id)} 📥 Downloading ${outputPaths.length} files for ZIP creation`);
     const filesToZip = await Promise.all(
       outputPaths.map(async (p) => {
-        console.log(`${logPrefix(job.id)} Downloading for ZIP: ${p}`);
+        console.log(`${logPrefix(job.id)} 📂 Downloading for ZIP: ${p}`);
         const { data, error } = await storageClient.storage.from('outputs').download(p);
         if (error) throw new Error(`Failed to download ${p} for zipping: ${error.message}`);
         if (!data) throw new Error(`No data for ${p} when zipping`);
@@ -355,7 +394,7 @@ serve(async (req) => {
     const filesToZipObj: { [key: string]: Uint8Array } = {};
     for (const file of filesToZip) {
         filesToZipObj[file.path] = file.data;
-        console.log(`${logPrefix(job.id)} Added to ZIP: ${file.path} (${file.data.length} bytes)`);
+        console.log(`${logPrefix(job.id)} 📦 Added to ZIP: ${file.path} (${file.data.length} bytes)`);
     }
 
     console.log(`${logPrefix(job.id)} 🗜️ Creating ZIP with ${Object.keys(filesToZipObj).length} files`);
