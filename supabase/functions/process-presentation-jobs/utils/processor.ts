@@ -7,111 +7,99 @@ import { generateUniqueFilename, createZipArchive } from './fileGeneration.ts';
 import { markJobComplete, markJobError } from './job.ts';
 
 export const processJob = async (supabaseAdmin: any, job: any) => {
-  const storageClient = supabaseAdmin;
-
   try {
-    // Download Template and CSV Files (5% total)
-    await updateProgress(supabaseAdmin, job.id, 1, 'Downloading template file...');
+    // Download files
+    await updateProgress(supabaseAdmin, job.id, 1, 'Downloading files...');
     
     const [templateFile, csvFile] = await Promise.all([
-      storageClient.storage.from('templates').download(job.templates.storage_path),
-      storageClient.storage.from('csv_files').download(job.csv_uploads.storage_path),
+      supabaseAdmin.storage.from('templates').download(job.templates.storage_path),
+      supabaseAdmin.storage.from('csv_files').download(job.csv_uploads.storage_path),
     ]);
 
-    if (templateFile.error) throw new Error(`Failed to download template: ${templateFile.error.message}`);
-    if (csvFile.error) throw new Error(`Failed to download CSV: ${csvFile.error.message}`);
-
-    await updateProgress(supabaseAdmin, job.id, 3, 'Files downloaded, parsing CSV...');
+    if (templateFile.error) throw new Error(`Template download failed: ${templateFile.error.message}`);
+    if (csvFile.error) throw new Error(`CSV download failed: ${csvFile.error.message}`);
 
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
     
-    // Extract image variables from template
+    // Extract image variables and parse CSV
     const imageVariables = extractImageVariables(templateData);
-    console.log(`${logPrefix(job.id)} Found image variables: ${imageVariables.join(', ')}`);
-    
-    // Use our custom string-preserving CSV parser
     const parsedCsv = parseCSVAsStrings(csvData);
     const totalRows = parsedCsv.length;
     
-    console.log(`${logPrefix(job.id)} Successfully parsed ${totalRows} data rows as strings.`);
+    console.log(`${logPrefix(job.id)} Found ${imageVariables.length} image variables: ${imageVariables.join(', ')}`);
+    console.log(`${logPrefix(job.id)} Processing ${totalRows} rows`);
 
-    await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
+    await updateProgress(supabaseAdmin, job.id, 5, `Processing ${totalRows} presentations...`);
 
-    // Setup Image Getter
+    // Setup image getter
     const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id);
 
-    // Process Each Row and Generate Presentations (5% to 85% - 80% for processing)
+    // Process each row
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
 
     for (const [index, row] of parsedCsv.entries()) {
-      const baseProgress = 5;
-      const processingProgress = 80;
-      const currentProgress = baseProgress + Math.round((index / totalRows) * processingProgress);
-      
-      await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
+      const progress = 5 + Math.round((index / totalRows) * 80);
+      await updateProgress(supabaseAdmin, job.id, progress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
-      const doc = createDocumentFromTemplate(templateData, imageGetter, imageVariables, job.id);
+      // Create fresh document for each presentation
+      const doc = createDocumentFromTemplate(templateData, imageGetter, imageVariables);
 
-      // Log the actual values being used for debugging
+      // Log row data for debugging
       console.log(`${logPrefix(job.id)} Row ${index + 1} data:`, JSON.stringify(row));
       
-      // Log which variables are being processed as images
+      // Log image processing
       for (const variable of imageVariables) {
         if (row[variable]) {
           console.log(`${logPrefix(job.id)} Processing image variable ${variable} with value: ${row[variable]}`);
         }
       }
 
+      // Render the document
       doc.render(row);
       
       const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
       
-      // Generate Filename
+      // Generate unique filename
       const finalFilename = generateUniqueFilename(job, row, index, usedFilenames);
       const outputPath = `${job.user_id}/${job.id}/${finalFilename}`;
       
-      const { error: uploadError } = await storageClient.storage
+      // Upload generated file
+      const { error: uploadError } = await supabaseAdmin.storage
         .from('outputs')
         .upload(outputPath, generatedBuffer, { 
           upsert: true, 
           contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' 
         });
         
-      if (uploadError) throw new Error(`Failed to upload generated file for row ${index + 1}: ${uploadError.message}`);
+      if (uploadError) throw new Error(`Upload failed for row ${index + 1}: ${uploadError.message}`);
       
       outputPaths.push(outputPath);
     }
 
-    // Create and Upload ZIP Archive (85% to 95%)
-    await updateProgress(supabaseAdmin, job.id, 85, 'All presentations generated, creating ZIP archive...');
+    // Create ZIP archive
+    await updateProgress(supabaseAdmin, job.id, 85, 'Creating ZIP archive...');
     
     const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
-    
-    await updateProgress(supabaseAdmin, job.id, 87, 'Downloading files for ZIP creation...');
-    
-    const zippedData = await createZipArchive(storageClient, outputPaths);
+    const zippedData = await createZipArchive(supabaseAdmin, outputPaths);
 
-    await updateProgress(supabaseAdmin, job.id, 93, 'Uploading ZIP file...');
+    await updateProgress(supabaseAdmin, job.id, 95, 'Uploading ZIP file...');
 
-    const zipUploadResponse = await storageClient.storage
+    const { error: zipUploadError } = await supabaseAdmin.storage
       .from('outputs')
       .upload(zipPath, zippedData, { upsert: true, contentType: 'application/zip' });
 
-    if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
+    if (zipUploadError) throw new Error(`ZIP upload failed: ${zipUploadError.message}`);
 
-    // Finalize Job (95% to 100%)
-    await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
-    
+    // Mark job complete
     await markJobComplete(supabaseAdmin, job.id, zipPath);
+    console.log(`${logPrefix(job.id)} Job completed successfully`);
 
-    console.log(`${logPrefix(job.id)} Job completed successfully at 100%.`);
-
-    return { message: `Job ${job.id} completed.` };
+    return { message: `Job ${job.id} completed` };
 
   } catch (error) {
-    console.error(`${logPrefix(job.id)} An error occurred:`, error);
+    console.error(`${logPrefix(job.id)} Error:`, error);
     await markJobError(supabaseAdmin, job.id, error.message);
     throw error;
   }
