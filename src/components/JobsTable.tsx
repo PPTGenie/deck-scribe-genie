@@ -54,25 +54,11 @@ export function JobsTable({ jobs }: JobsTableProps) {
   const handleRetry = async (jobId: string) => {
     const retryToast = toast.loading("Retrying job...");
     try {
-      // Reset all job fields to ensure clean retry
       const { error } = await supabase
         .from('jobs')
-        .update({ 
-          status: 'queued', 
-          progress: 0, 
-          error_msg: null, 
-          finished_at: null,
-          output_zip: null  // Clear any previous output
-        })
+        .update({ status: 'queued', progress: 0, error_msg: null, finished_at: null })
         .eq('id', jobId);
-      
       if (error) throw error;
-      
-      // Immediately trigger job processing
-      supabase.functions.invoke('process-presentation-jobs').catch(err => {
-        console.error("Error triggering job processing:", err);
-      });
-      
       toast.success("Job has been queued for retry.", { id: retryToast });
       queryClient.invalidateQueries({ queryKey: ['jobs', user?.id] });
     } catch (error: any) {

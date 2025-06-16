@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { CsvPreview } from '@/types/files';
@@ -7,19 +6,12 @@ import { withRetry } from '@/lib/retry';
 
 type SetJobProgress = (progress: { value: number; message: string } | null) => void;
 
-interface ImageFile {
-  file: File;
-  preview: string;
-  normalized: string;
-}
-
 interface JobCreationParams {
     templateFile: File;
     csvFile: File;
     user: User;
     csvPreview: CsvPreview;
     filenameTemplate: string;
-    uploadedImages?: ImageFile[];
     setJobProgress: SetJobProgress;
     navigate: NavigateFunction;
 }
@@ -30,12 +22,11 @@ export async function createJob({
     user,
     csvPreview,
     filenameTemplate,
-    uploadedImages = [],
     setJobProgress,
     navigate,
 }: JobCreationParams) {
     // 1. Upload Template
-    setJobProgress({ value: 5, message: `Uploading template: ${templateFile.name}` });
+    setJobProgress({ value: 10, message: `Uploading template: ${templateFile.name}` });
     const templateExt = templateFile.name.split('.').pop() || 'pptx';
     const templateFileName = `${crypto.randomUUID()}.${templateExt}`;
     const templatePath = `${user.id}/${templateFileName}`;
@@ -48,12 +39,12 @@ export async function createJob({
     }, {
         onRetry: (error, attempt) => {
             console.warn(`Template upload failed on attempt ${attempt}:`, error.message);
-            setJobProgress({ value: 5, message: `Template upload failed. Retrying... (${attempt}/3)` });
+            setJobProgress({ value: 10, message: `Template upload failed. Retrying... (${attempt}/3)` });
         },
     });
 
     // 2. Insert Template record
-    setJobProgress({ value: 15, message: 'Saving template record...' });
+    setJobProgress({ value: 25, message: 'Saving template record...' });
     const { data: templateData } = await withRetry(async () => {
         const { data, error } = await supabase
             .from('templates')
@@ -67,44 +58,12 @@ export async function createJob({
     }, {
         onRetry: (error, attempt) => {
             console.warn(`Template DB insert failed on attempt ${attempt}:`, error.message);
-            setJobProgress({ value: 15, message: `DB operation failed. Retrying... (${attempt}/3)` });
+            setJobProgress({ value: 25, message: `DB operation failed. Retrying... (${attempt}/3)` });
         }
     });
 
-    // 3. Upload Images
-    if (uploadedImages.length > 0) {
-        const imageCount = uploadedImages.length;
-        let uploadedImageCount = 0;
-
-        for (const imageFile of uploadedImages) {
-            setJobProgress({ 
-                value: 25 + Math.round((uploadedImageCount / imageCount) * 25), 
-                message: `Uploading image ${uploadedImageCount + 1}/${imageCount}: ${imageFile.file.name}` 
-            });
-
-            const imagePath = `${user.id}/${templateData.id}/${imageFile.file.name}`;
-            
-            await withRetry(async () => {
-                const { error } = await supabase.storage
-                    .from('images')
-                    .upload(imagePath, imageFile.file);
-                if (error) throw error;
-            }, {
-                onRetry: (error, attempt) => {
-                    console.warn(`Image upload failed on attempt ${attempt}:`, error.message);
-                    setJobProgress({ 
-                        value: 25 + Math.round((uploadedImageCount / imageCount) * 25), 
-                        message: `Image upload failed. Retrying... (${attempt}/3)` 
-                    });
-                },
-            });
-
-            uploadedImageCount++;
-        }
-    }
-
-    // 4. Upload CSV
-    setJobProgress({ value: 55, message: `Uploading data file: ${csvFile.name}` });
+    // 3. Upload CSV
+    setJobProgress({ value: 45, message: `Uploading data file: ${csvFile.name}` });
     const csvExt = csvFile.name.split('.').pop() || 'csv';
     const csvFileName = `${crypto.randomUUID()}.${csvExt}`;
     const csvPath = `${user.id}/${csvFileName}`;
@@ -117,12 +76,12 @@ export async function createJob({
     }, {
         onRetry: (error, attempt) => {
             console.warn(`CSV upload failed on attempt ${attempt}:`, error.message);
-            setJobProgress({ value: 55, message: `CSV upload failed. Retrying... (${attempt}/3)` });
+            setJobProgress({ value: 45, message: `CSV upload failed. Retrying... (${attempt}/3)` });
         },
     });
 
-    // 5. Insert CSV record
-    setJobProgress({ value: 75, message: 'Saving data record...' });
+    // 4. Insert CSV record
+    setJobProgress({ value: 65, message: 'Saving data record...' });
     const { data: csvData } = await withRetry(async () => {
         const { data, error } = await supabase
             .from('csv_uploads')
@@ -140,12 +99,12 @@ export async function createJob({
     }, {
         onRetry: (error, attempt) => {
             console.warn(`CSV DB insert failed on attempt ${attempt}:`, error.message);
-            setJobProgress({ value: 75, message: `DB operation failed. Retrying... (${attempt}/3)` });
+            setJobProgress({ value: 65, message: `DB operation failed. Retrying... (${attempt}/3)` });
         }
     });
 
-    // 6. Insert Job record
-    setJobProgress({ value: 90, message: 'Creating job...' });
+    // 5. Insert Job record
+    setJobProgress({ value: 85, message: 'Creating job...' });
     await withRetry(async () => {
         const { error } = await supabase
             .from('jobs')
@@ -159,11 +118,11 @@ export async function createJob({
     }, {
         onRetry: (error, attempt) => {
             console.warn(`Job DB insert failed on attempt ${attempt}:`, error.message);
-            setJobProgress({ value: 90, message: `Job creation failed. Retrying... (${attempt}/3)` });
+            setJobProgress({ value: 85, message: `Job creation failed. Retrying... (${attempt}/3)` });
         }
     });
     
-    // 7. Trigger edge function to start processing immediately.
+    // 6. Trigger edge function to start processing immediately.
     setJobProgress({ value: 95, message: 'Triggering processing...' });
     supabase.functions.invoke('process-presentation-jobs').catch(err => {
         console.error("Error triggering job processing immediately:", err);

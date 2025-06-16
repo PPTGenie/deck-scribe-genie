@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from 'react';
 import type { CsvPreview, TemplateVariables } from '@/types/files';
-import { validateAllImageFilenames } from '@/lib/imageValidation';
 
 interface ImageFile {
   file: File;
@@ -20,7 +19,6 @@ export function useNewBatchWithImagesState() {
   const [missingVariables, setMissingVariables] = useState<string[]>([]);
   const [filenameTemplate, setFilenameTemplate] = useState<string>('');
   const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
-  const [imageValidationIssues, setImageValidationIssues] = useState<any[]>([]);
 
   // When template file is cleared, also clear everything else
   useEffect(() => {
@@ -30,7 +28,6 @@ export function useNewBatchWithImagesState() {
       setCsvPreview(null);
       setMissingVariables([]);
       setUploadedImages([]);
-      setImageValidationIssues([]);
     }
   }, [templateFile]);
 
@@ -51,16 +48,6 @@ export function useNewBatchWithImagesState() {
       setMissingVariables(missing);
     } else {
       setMissingVariables([]);
-    }
-  }, [extractedVariables, csvPreview]);
-
-  // Validate image filenames when CSV data changes
-  useEffect(() => {
-    if (extractedVariables?.images && csvPreview?.data) {
-      const issues = validateAllImageFilenames(csvPreview.data, extractedVariables.images);
-      setImageValidationIssues(issues);
-    } else {
-      setImageValidationIssues([]);
     }
   }, [extractedVariables, csvPreview]);
 
@@ -95,6 +82,5 @@ export function useNewBatchWithImagesState() {
     filenameTemplate, setFilenameTemplate,
     filenameError, setFilenameError,
     csvImageValues,
-    imageValidationIssues,
   };
 }
