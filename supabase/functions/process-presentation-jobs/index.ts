@@ -17,6 +17,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to extract image variables from template
+const extractImageVariables = (templateData: ArrayBuffer): string[] => {
+  try {
+    const zip = new PizZip(templateData);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      delimiters: { start: '{{', end: '}}' },
+    });
+
+    // Get all variables from the template
+    const variables = doc.getFullText().match(/\{\{([^}]+)\}\}/g) || [];
+    const imageVariables = variables
+      .map(v => v.replace(/[{}]/g, '').trim())
+      .filter(v => v.endsWith('_img'));
+    
+    console.log('Extracted image variables:', imageVariables);
+    return imageVariables;
+  } catch (error) {
+    console.error('Error extracting image variables:', error);
+    return [];
+  }
+};
+
 serve(async (req) => {
   console.log(`process-presentation-jobs function invoked at: ${new Date().toISOString()}`);
   if (req.method === 'OPTIONS') {
@@ -59,6 +83,10 @@ serve(async (req) => {
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
     
+    // Extract image variables from template
+    const imageVariables = extractImageVariables(templateData);
+    console.log(`${logPrefix(job.id)} Found image variables: ${imageVariables.join(', ')}`);
+    
     // Use our custom string-preserving CSV parser
     const parsedCsv = parseCSVAsStrings(csvData);
     const totalRows = parsedCsv.length;
@@ -67,9 +95,9 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Getter (but not the module yet) ---
+    // --- 3. Setup Image Getter with proper configuration ---
     const imageGetter = createImageGetter(supabaseAdmin, job.templates.user_id, job.template_id);
-    const imageOptions = createImageOptions(imageGetter);
+    const imageOptions = createImageOptions(imageGetter, imageVariables);
 
     // --- 4. Process Each Row and Generate Presentations (5% to 85% - 80% for processing) ---
     const outputPaths: string[] = [];
@@ -84,7 +112,7 @@ serve(async (req) => {
 
         const zip = new PizZip(templateData);
         
-        // Create a fresh ImageModule instance for each presentation
+        // Create a fresh ImageModule instance for each presentation with proper configuration
         const imageModule = new ImageModule(imageOptions);
         
         const doc = new Docxtemplater(zip, {
@@ -97,6 +125,13 @@ serve(async (req) => {
 
         // Log the actual values being used for debugging
         console.log(`${logPrefix(job.id)} Row ${index + 1} data:`, JSON.stringify(row));
+        
+        // Log which variables are being processed as images
+        for (const variable of imageVariables) {
+          if (row[variable]) {
+            console.log(`${logPrefix(job.id)} Processing image variable ${variable} with value: ${row[variable]}`);
+          }
+        }
 
         doc.render(row);
         

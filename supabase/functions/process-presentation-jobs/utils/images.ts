@@ -3,6 +3,8 @@
 export const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string) => {
   return async (tagValue: string, tagName: string) => {
     try {
+      console.log(`Image getter called for tag: ${tagName} with value: ${tagValue}`);
+      
       // Normalize the image filename
       const normalizedFilename = tagValue.toLowerCase()
         .replace(/\.jpeg$/i, '.jpg')
@@ -41,10 +43,19 @@ export const createImageGetter = (supabaseAdmin: any, userId: string, templateId
   };
 };
 
-export const createImageOptions = (imageGetter: any) => {
+export const createImageOptions = (imageGetter: any, imageVariables: string[] = []) => {
   return {
     centered: false,
     getImage: imageGetter,
     getSize: () => [150, 150], // Default size in pixels
+    // Configure which variables should be treated as images
+    getProps: (tagName: string) => {
+      const isImageVariable = imageVariables.includes(tagName) || tagName.endsWith('_img');
+      console.log(`Variable ${tagName} is image variable: ${isImageVariable}`);
+      return isImageVariable ? { 
+        centered: false,
+        getSize: () => [150, 150]
+      } : null;
+    }
   };
 };
