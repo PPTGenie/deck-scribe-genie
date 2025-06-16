@@ -3,7 +3,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
-import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.1.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
@@ -111,7 +110,7 @@ const extractImagePlaceholders = (zipContent: Uint8Array, jobId: string): Array<
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string) => {
     const jobId = 'current';
-    console.log(`${logPrefix(jobId)} 🖼️ IMAGE MODULE getImage() CALLED!`);
+    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED!`);
     console.log(`${logPrefix(jobId)} 📋 Parameters: tagName="${tagName}", tagValue="${tagValue}"`);
     console.log(`${logPrefix(jobId)} 🗂️ Context: userId="${userId}", templateId="${templateId}"`);
     console.log(`${logPrefix(jobId)} ⚙️ Behavior: "${missingImageBehavior}"`);
@@ -140,7 +139,7 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
             const imageBuffer = new Uint8Array(await data.arrayBuffer());
             console.log(`${logPrefix(jobId)} ✅ SUCCESS! Image found at "${imagePath}"`);
             console.log(`${logPrefix(jobId)} 📊 Image size: ${imageSize} bytes, buffer length: ${imageBuffer.length}`);
-            console.log(`${logPrefix(jobId)} 🎯 RETURNING IMAGE BUFFER TO DOCXTEMPLATER`);
+            console.log(`${logPrefix(jobId)} 🎯 RETURNING IMAGE BUFFER`);
             return imageBuffer;
           } else {
             console.log(`${logPrefix(jobId)} ❌ Path failed: ${error?.message || 'No data'}`);
@@ -184,41 +183,6 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
       return null;
     }
   };
-};
-
-// Enhanced image module with detailed logging
-const createImageModule = (imageGetter: any) => {
-  console.log(`🔧 CREATING IMAGE MODULE WITH GETTER`);
-  
-  return new ImageModule({
-    centered: false,
-    getImage: (tagValue: string, tagName: string) => {
-      console.log(`🖼️ IMAGE MODULE getImage() CALLED!`);
-      console.log(`📋 Parameters: tagName="${tagName}", tagValue="${tagValue}"`);
-      const result = imageGetter(tagValue, tagName);
-      console.log(`🎯 getImage() returning:`, result ? 'IMAGE_BUFFER' : 'NULL');
-      return result;
-    },
-    getSize: (img: any, tagValue: string, tagName: string) => {
-      console.log(`📏 IMAGE MODULE getSize() CALLED!`);
-      console.log(`📋 Parameters: tagName="${tagName}", tagValue="${tagValue}"`);
-      // Return size in EMUs (English Metric Units) for PowerPoint
-      // 200x150 pixels = roughly 1905000 x 1428750 EMUs
-      const size = [1905000, 1428750];
-      console.log(`📐 Returning size:`, size);
-      return size;
-    },
-    getProps: (img: any, tagValue: string, tagName: string) => {
-      console.log(`⚙️ IMAGE MODULE getProps() CALLED!`);
-      console.log(`📋 Parameters: tagName="${tagName}", tagValue="${tagValue}"`);
-      const props = {
-        centered: false,
-        fit: 'contain'
-      };
-      console.log(`🔧 Returning props:`, props);
-      return props;
-    }
-  });
 };
 
 // Advanced image injection for text placeholders - now works on pre-identified placeholders
@@ -337,7 +301,7 @@ const injectImagesIntoSlides = async (
         
         // Verify the placeholder still exists
         if (!slideContent.includes(placeholder)) {
-          console.log(`${logPrefix(jobId)} ⚠️ Placeholder ${placeholder} not found in ${fileName} - may have been processed by docxtemplater`);
+          console.log(`${logPrefix(jobId)} ⚠️ Placeholder ${placeholder} not found in ${fileName} - may have been processed already`);
           continue;
         }
         
@@ -565,17 +529,14 @@ serve(async (req) => {
           
           console.log(`${logPrefix(job.id)} 📊 DATA SPLIT: ${Object.keys(textOnlyData).length} text vars, ${Object.keys(imageData).length} image vars`);
           
-          // STEP 3: Run docxtemplater with text-only data (preserves image placeholders)
-          console.log(`${logPrefix(job.id)} 🔧 Creating image module for presentation ${index + 1}`);
-          const imageModule = createImageModule(imageGetter);
-          
-          console.log(`${logPrefix(job.id)} 🔧 Configuring docxtemplater with modules`);
+          // STEP 3: Run docxtemplater with text-only data (NO IMAGE MODULE!)
+          console.log(`${logPrefix(job.id)} 🔧 Configuring docxtemplater WITHOUT image module`);
           const doc = new Docxtemplater(zip, {
               paragraphLoop: true,
               linebreaks: true,
               delimiters: { start: '{{', end: '}}' },
               nullGetter: () => "",
-              modules: [imageModule]
+              // NO MODULES! This is key - we don't want any image processing at all
           });
 
           console.log(`${logPrefix(job.id)} 🎨 RENDERING TEMPLATE with TEXT-ONLY data for row ${index + 1}`);
