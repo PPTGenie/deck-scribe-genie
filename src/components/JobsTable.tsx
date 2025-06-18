@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Job } from '@/types/jobs';
@@ -93,21 +92,33 @@ export function JobsTable({ jobs }: JobsTableProps) {
 
   return (
     <>
-      <Card className="shadow-lg border-slate-200/60 bg-white/90 backdrop-blur-sm">
-        <CardHeader className="pb-6 px-8 pt-8">
-          <CardTitle className="text-2xl font-semibold text-slate-800">Batch Jobs</CardTitle>
-        </CardHeader>
-        <CardContent className="px-8 pb-8">
-          <div className="rounded-lg border border-slate-200/60 overflow-hidden bg-white/50">
+      <div className="modern-card">
+        <div className="p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-semibold text-foreground">Recent Jobs</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'} found
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-success rounded-full"></div>
+                <span className="text-xs text-muted-foreground">Live updates</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="rounded-card border border-border/60 overflow-hidden bg-card/50">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/80 hover:bg-slate-50/80 border-slate-200/60">
-                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Template</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 px-6">CSV Rows</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Status</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Progress</TableHead>
-                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Created</TableHead>
-                  <TableHead className="text-right font-semibold text-slate-700 py-4 px-6">Actions</TableHead>
+                <TableRow className="bg-muted/30 hover:bg-muted/30 border-border/40">
+                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Template</TableHead>
+                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Rows</TableHead>
+                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Status</TableHead>
+                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Progress</TableHead>
+                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Created</TableHead>
+                  <TableHead className="text-right font-semibold text-foreground/80 py-4 px-6 text-sm">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -124,8 +135,8 @@ export function JobsTable({ jobs }: JobsTableProps) {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       <DeleteJobDialog
         isOpen={!!jobToDelete}
         onOpenChange={(open) => !open && setJobToDelete(null)}

@@ -97,28 +97,34 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="text-lg text-slate-600 font-medium">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+          <p className="text-sm text-muted-foreground font-medium">Loading your batch jobs...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 px-6 border-b border-slate-200/60 bg-white/80 backdrop-blur-sm sm:px-8 lg:px-10">
-            <SidebarTrigger className="-ml-1" />
-            <h1 className="text-xl font-semibold text-slate-800">PPT Genie Dashboard</h1>
+          <header className="flex h-16 shrink-0 items-center gap-2 px-gutter border-b border-border/60 bg-card/80 backdrop-blur-sm">
+            <SidebarTrigger className="-ml-1 focus-ring" />
+            <div className="flex items-center space-x-3">
+              <div className="w-2 h-2 bg-primary rounded-full"></div>
+              <h1 className="text-xl font-semibold text-foreground">PPT Genie Dashboard</h1>
+            </div>
           </header>
-          <main className="flex-1 py-8">
+          <main className="flex-1 p-gutter">
             <ContentContainer>
-              <div className="flex flex-col gap-8">
+              <div className="space-y-8">
                 <div className="space-y-3">
-                  <h2 className="text-3xl font-bold tracking-tight text-slate-900">Your Batch Jobs</h2>
-                  <p className="text-lg text-slate-600">
-                    Track your PowerPoint generation tasks
+                  <h2 className="text-3xl font-bold tracking-tight text-foreground">Your Batch Jobs</h2>
+                  <p className="text-base text-muted-foreground max-w-2xl">
+                    Track and manage your PowerPoint generation tasks. Monitor progress, download completed batches, and retry failed jobs.
                   </p>
                 </div>
                 <JobsTable jobs={jobs} />
