@@ -93,35 +93,37 @@ export function JobsTable({ jobs }: JobsTableProps) {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Batch Jobs</CardTitle>
+      <Card className="shadow-lg border-slate-200/60 bg-white/90 backdrop-blur-sm">
+        <CardHeader className="pb-6 px-8 pt-8">
+          <CardTitle className="text-2xl font-semibold text-slate-800">Batch Jobs</CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Template</TableHead>
-                <TableHead>CSV Rows</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {jobs.map((job) => (
-                <JobTableRow
-                  key={job.id}
-                  job={job}
-                  downloadingJobId={downloadingJobId}
-                  onRetry={handleRetry}
-                  onDownload={handleDownload}
-                  onDelete={setJobToDelete}
-                />
-              ))}
-            </TableBody>
-          </Table>
+        <CardContent className="px-8 pb-8">
+          <div className="rounded-lg border border-slate-200/60 overflow-hidden bg-white/50">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/80 hover:bg-slate-50/80 border-slate-200/60">
+                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Template</TableHead>
+                  <TableHead className="font-semibold text-slate-700 py-4 px-6">CSV Rows</TableHead>
+                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Status</TableHead>
+                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Progress</TableHead>
+                  <TableHead className="font-semibold text-slate-700 py-4 px-6">Created</TableHead>
+                  <TableHead className="text-right font-semibold text-slate-700 py-4 px-6">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <JobTableRow
+                    key={job.id}
+                    job={job}
+                    downloadingJobId={downloadingJobId}
+                    onRetry={handleRetry}
+                    onDownload={handleDownload}
+                    onDelete={setJobToDelete}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       <DeleteJobDialog

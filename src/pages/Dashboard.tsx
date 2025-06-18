@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,27 +97,27 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-lg text-slate-600 font-medium">Loading...</div>
       </div>
     );
   }
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 to-slate-100">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b sm:px-6 lg:px-8">
+          <header className="flex h-16 shrink-0 items-center gap-2 px-6 border-b border-slate-200/60 bg-white/80 backdrop-blur-sm sm:px-8 lg:px-10">
             <SidebarTrigger className="-ml-1" />
-            <h1 className="text-xl font-semibold">PPT Genie Dashboard</h1>
+            <h1 className="text-xl font-semibold text-slate-800">PPT Genie Dashboard</h1>
           </header>
-          <main className="flex-1 py-6">
+          <main className="flex-1 py-8">
             <ContentContainer>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight">Your Batch Jobs</h2>
-                  <p className="text-muted-foreground">
+              <div className="flex flex-col gap-8">
+                <div className="space-y-3">
+                  <h2 className="text-3xl font-bold tracking-tight text-slate-900">Your Batch Jobs</h2>
+                  <p className="text-lg text-slate-600">
                     Track your PowerPoint generation tasks
                   </p>
                 </div>
