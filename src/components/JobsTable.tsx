@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Job } from '@/types/jobs';
@@ -92,51 +93,37 @@ export function JobsTable({ jobs }: JobsTableProps) {
 
   return (
     <>
-      <div className="modern-card">
-        <div className="p-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-semibold text-foreground">Recent Jobs</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'} found
-              </p>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-success rounded-full"></div>
-                <span className="text-xs text-muted-foreground">Live updates</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="rounded-card border border-border/60 overflow-hidden bg-card/50">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30 border-border/40">
-                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Template</TableHead>
-                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Rows</TableHead>
-                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Status</TableHead>
-                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Progress</TableHead>
-                  <TableHead className="font-semibold text-foreground/80 py-4 px-6 text-sm">Created</TableHead>
-                  <TableHead className="text-right font-semibold text-foreground/80 py-4 px-6 text-sm">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((job) => (
-                  <JobTableRow
-                    key={job.id}
-                    job={job}
-                    downloadingJobId={downloadingJobId}
-                    onRetry={handleRetry}
-                    onDownload={handleDownload}
-                    onDelete={setJobToDelete}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Batch Jobs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Template</TableHead>
+                <TableHead>CSV Rows</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Progress</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((job) => (
+                <JobTableRow
+                  key={job.id}
+                  job={job}
+                  downloadingJobId={downloadingJobId}
+                  onRetry={handleRetry}
+                  onDownload={handleDownload}
+                  onDelete={setJobToDelete}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       <DeleteJobDialog
         isOpen={!!jobToDelete}
         onOpenChange={(open) => !open && setJobToDelete(null)}

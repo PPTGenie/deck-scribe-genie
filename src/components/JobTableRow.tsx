@@ -39,59 +39,59 @@ const getStatusVariant = (status: string) => {
 
 export function JobTableRow({ job, downloadingJobId, onRetry, onDownload, onDelete }: JobTableRowProps) {
   return (
-    <TableRow className="hover:bg-slate-50/50 border-slate-200/40 transition-colors">
-      <TableCell className="font-medium text-slate-800 py-5 px-6">
+    <TableRow>
+      <TableCell className="font-medium">
         {job.templates.filename}
       </TableCell>
-      <TableCell className="text-slate-600 py-5 px-6">{job.csv_uploads.rows_count}</TableCell>
-      <TableCell className="py-5 px-6">
-        <Badge variant={getStatusVariant(job.status)} className="capitalize font-medium">
+      <TableCell>{job.csv_uploads.rows_count}</TableCell>
+      <TableCell>
+        <Badge variant={getStatusVariant(job.status)} className="capitalize">
           {job.status}
         </Badge>
       </TableCell>
-      <TableCell className="w-32 py-5 px-6">
-        <div className="space-y-2">
-          <Progress value={job.progress} className="h-2.5 bg-slate-200" />
-          <span className="text-sm text-slate-500 font-medium">
+      <TableCell className="w-32">
+        <div className="space-y-1">
+          <Progress value={job.progress} className="h-2" />
+          <span className="text-xs text-muted-foreground">
             {job.progress}%
           </span>
         </div>
       </TableCell>
-      <TableCell className="text-slate-600 py-5 px-6">
+      <TableCell>
         {new Date(job.created_at).toLocaleDateString()}
       </TableCell>
-      <TableCell className="text-right py-5 px-6">
+      <TableCell className="text-right">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="border-slate-300 hover:bg-slate-50">
+            <Button variant="outline" size="sm">
               Actions
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-40 bg-white border-slate-200 shadow-lg">
-            <DropdownMenuItem onClick={() => onRetry(job.id)} className="hover:bg-slate-50">
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={() => onRetry(job.id)}>
               Retry
             </DropdownMenuItem>
 
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger disabled={job.status !== 'done' || !job.output_zip} className="hover:bg-slate-50">
+              <DropdownMenuSubTrigger disabled={job.status !== 'done' || !job.output_zip}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
               </DropdownMenuSubTrigger>
               <DropdownMenuPortal>
-                <DropdownMenuSubContent className="bg-white border-slate-200 shadow-lg">
-                  <DropdownMenuItem onClick={() => onDownload(job)} disabled={downloadingJobId === job.id} className="hover:bg-slate-50">
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => onDownload(job)} disabled={downloadingJobId === job.id}>
                     {downloadingJobId === job.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Download .pptx
                   </DropdownMenuItem>
-                  <DropdownMenuItem disabled className="flex justify-between items-center opacity-50">
+                  <DropdownMenuItem disabled className="flex justify-between items-center">
                     <span>Download .pdf</span>
-                    <Badge variant="outline" className="text-xs">Soon</Badge>
+                    <Badge variant="outline">Soon</Badge>
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuPortal>
             </DropdownMenuSub>
 
-            <DropdownMenuSeparator className="bg-slate-200" />
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:bg-destructive/10 focus:text-destructive"
               onClick={() => onDelete(job)}

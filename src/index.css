@@ -1,89 +1,94 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Design System CSS Variables */
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
+
 @layer base {
   :root {
-    --background: 249 250 251; /* #F9FAFB */
-    --foreground: 17 24 39; /* #111827 */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    --card: 255 255 255; /* #FFFFFF */
-    --card-foreground: 17 24 39; /* #111827 */
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
 
-    --popover: 255 255 255;
-    --popover-foreground: 17 24 39;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 99 102 241; /* #6366F1 */
-    --primary-foreground: 255 255 255;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 243 244 246; /* #F3F4F6 */
-    --secondary-foreground: 17 24 39;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 243 244 246;
-    --muted-foreground: 107 114 128; /* #6B7280 */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 14 165 233; /* #0EA5E9 */
-    --accent-foreground: 255 255 255;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive: 244 63 94; /* #F43F5E */
-    --destructive-foreground: 255 255 255;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 229 231 235; /* #E5E7EB */
-    --input: 229 231 235;
-    --ring: 99 102 241;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
 
-    --radius: 12px;
+    --radius: 0.5rem;
 
-    --sidebar-background: 255 255 255;
-    --sidebar-foreground: 17 24 39;
-    --sidebar-primary: 99 102 241;
-    --sidebar-primary-foreground: 255 255 255;
-    --sidebar-accent: 243 244 246;
-    --sidebar-accent-foreground: 17 24 39;
-    --sidebar-border: 229 231 235;
-    --sidebar-ring: 99 102 241;
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 17 24 39; /* #111827 */
-    --foreground: 249 250 251; /* #F9FAFB */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --card: 31 41 55; /* #1F2937 */
-    --card-foreground: 249 250 251;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 31 41 55;
-    --popover-foreground: 249 250 251;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 124 58 237; /* #7C3AED - +8% brightness */
-    --primary-foreground: 255 255 255;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 55 65 81; /* #374151 */
-    --secondary-foreground: 249 250 251;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 55 65 81;
-    --muted-foreground: 156 163 175; /* #9CA3AF */
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 6 182 212; /* #06B6D4 - +8% brightness */
-    --accent-foreground: 255 255 255;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 220 38 38; /* #DC2626 - +8% brightness */
-    --destructive-foreground: 255 255 255;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 75 85 99; /* #4B5563 */
-    --input: 75 85 99;
-    --ring: 124 58 237;
-
-    --sidebar-background: 17 24 39;
-    --sidebar-foreground: 249 250 251;
-    --sidebar-primary: 124 58 237;
-    --sidebar-primary-foreground: 255 255 255;
-    --sidebar-accent: 55 65 81;
-    --sidebar-accent-foreground: 249 250 251;
-    --sidebar-border: 75 85 99;
-    --sidebar-ring: 124 58 237;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -92,72 +97,7 @@
     @apply border-border;
   }
 
-  html {
-    font-size: 15px;
-  }
-
-  @media (max-width: 768px) {
-    html {
-      font-size: 14px;
-    }
-  }
-
   body {
-    @apply bg-background text-foreground font-sans;
-    font-feature-settings: "cv03", "cv04", "cv11";
-  }
-}
-
-/* Modern Card Component */
-@layer components {
-  .modern-card {
-    @apply bg-card text-card-foreground rounded-card shadow-card border border-border/50;
-    @apply transition-all duration-200;
-    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .modern-card:hover {
-    @apply shadow-card-hover -translate-y-0.5;
-  }
-
-  .modern-card-grid {
-    @apply grid gap-card-gap;
-    @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6;
-  }
-
-  .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
-  }
-
-  .status-chip {
-    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
-    @apply transition-colors duration-200;
-  }
-
-  .status-chip.done {
-    @apply bg-success/10 text-success border border-success/20;
-  }
-
-  .status-chip.error {
-    @apply bg-error/10 text-error border border-error/20;
-  }
-
-  .status-chip.processing {
-    @apply bg-accent/10 text-accent border border-accent/20;
-  }
-
-  .status-chip.queued {
-    @apply bg-muted text-muted-foreground border border-border;
-  }
-}
-
-/* Reduce motion for accessibility */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    @apply bg-background text-foreground;
   }
 }
