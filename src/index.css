@@ -20,7 +20,7 @@
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 199 89% 48%;
+    --accent: 262 83% 58%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -39,7 +39,7 @@
 
     /* Design system tokens */
     --ds-primary: 249 84% 64%;
-    --ds-accent: 199 89% 48%;
+    --ds-accent: 262 83% 58%;
     --ds-success: 150 86% 65%;
     --ds-error: 347 77% 50%;
     --ds-neutral-50: 210 20% 98%;
@@ -67,7 +67,7 @@
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 199 89% 52%;
+    --accent: 262 83% 65%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
@@ -105,7 +105,8 @@
 /* Component styles */
 @layer components {
   .ds-card {
-    @apply bg-white rounded-xl shadow-sm border border-neutral-200/50 transition-all duration-200 ease-out;
+    @apply bg-white rounded-xl shadow-sm border border-neutral-200/50 transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .ds-card:hover {
@@ -118,17 +119,20 @@
 
   .ds-button-primary {
     @apply bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
-    @apply font-medium rounded-lg px-4 py-2.5 transition-all duration-200 ease-out;
+    @apply font-medium rounded-lg px-4 py-2.5 transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .ds-button-secondary {
     @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-neutral-200;
-    @apply font-medium rounded-lg px-4 py-2.5 transition-all duration-200 ease-out;
+    @apply font-medium rounded-lg px-4 py-2.5 transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .ds-input {
     @apply bg-background border border-neutral-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary;
-    @apply transition-all duration-200 ease-out placeholder:text-neutral-400;
+    @apply transition-all duration-200 placeholder:text-neutral-400;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .ds-stepper-active {
@@ -144,16 +148,30 @@
   }
 
   .ds-upload-zone {
-    @apply border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center;
-    @apply hover:border-primary hover:bg-primary/5 transition-all duration-200 ease-out;
+    @apply border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center text-neutral-600;
+    @apply hover:border-purple-400 hover:bg-purple-50 hover:text-purple-700 transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .ds-upload-zone.drag-over {
-    @apply border-primary bg-primary/10;
+    @apply border-purple-400 bg-purple-50 text-purple-700;
+  }
+
+  .dark .ds-upload-zone {
+    @apply text-neutral-300;
+  }
+
+  .dark .ds-upload-zone:hover {
+    @apply border-purple-500 bg-purple-900/20 text-purple-300;
+  }
+
+  .dark .ds-upload-zone.drag-over {
+    @apply border-purple-500 bg-purple-900/20 text-purple-300;
   }
 
   .ds-table-row {
-    @apply hover:bg-neutral-50 transition-colors duration-150 ease-out;
+    @apply hover:bg-neutral-50 transition-colors duration-150;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark .ds-table-row {
