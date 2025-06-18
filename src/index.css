@@ -112,7 +112,8 @@
 @layer components {
   .modern-card {
     @apply bg-card text-card-foreground rounded-card shadow-card border border-border/50;
-    @apply transition-all duration-200 ease-custom-out;
+    @apply transition-all duration-200;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .modern-card:hover {
