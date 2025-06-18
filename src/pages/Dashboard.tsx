@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -96,31 +97,39 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <div className="text-lg font-medium text-neutral-700">Loading dashboard...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full bg-neutral-50">
         <AppSidebar />
-        <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 px-4 border-b sm:px-6 lg:px-8">
-            <SidebarTrigger className="-ml-1" />
-            <h1 className="text-xl font-semibold">PPT Genie Dashboard</h1>
+        <SidebarInset className="flex-1">
+          <header className="flex h-16 shrink-0 items-center gap-4 px-6 border-b border-neutral-200/60 bg-white/80 backdrop-blur-xl">
+            <SidebarTrigger className="-ml-1 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 transition-colors" />
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-2 rounded-full bg-primary-500"></div>
+              <h1 className="text-xl font-semibold text-neutral-900">Dashboard</h1>
+            </div>
           </header>
-          <main className="flex-1 py-6">
+          <main className="flex-1 py-8">
             <ContentContainer>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight">Your Batch Jobs</h2>
-                  <p className="text-muted-foreground">
-                    Track your PowerPoint generation tasks
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">Your Batch Jobs</h2>
+                  <p className="text-base text-neutral-600 leading-relaxed">
+                    Track your PowerPoint generation tasks and download completed presentations
                   </p>
                 </div>
-                <JobsTable jobs={jobs} />
+                <div className="animate-fade-in">
+                  <JobsTable jobs={jobs} />
+                </div>
               </div>
             </ContentContainer>
           </main>

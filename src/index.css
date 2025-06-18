@@ -1,86 +1,79 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
-
+/* Design system CSS variables */
 @layer base {
   :root {
+    /* Existing shadcn variables */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 249 84% 64%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
+    --accent: 199 89% 48%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
+    --ring: 249 84% 64%;
+    --radius: 0.75rem;
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Design system tokens */
+    --ds-primary: 249 84% 64%;
+    --ds-accent: 199 89% 48%;
+    --ds-success: 150 86% 65%;
+    --ds-error: 347 77% 50%;
+    --ds-neutral-50: 210 20% 98%;
+    --ds-neutral-100: 220 14% 96%;
+    --ds-neutral-200: 220 13% 91%;
+    --ds-neutral-300: 212 17% 82%;
+    --ds-neutral-400: 218 11% 65%;  
+    --ds-neutral-500: 220 9% 46%;
+    --ds-neutral-600: 215 14% 34%;
+    --ds-neutral-700: 217 19% 27%;
+    --ds-neutral-800: 215 28% 17%;
+    --ds-neutral-900: 222 47% 11%;
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
+    --primary: 249 84% 70%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 199 89% 52%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 249 84% 70%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -90,14 +83,141 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 768px) {
+    body {
+      font-size: 14px;
+    }
+  }
+}
+
+/* Component styles */
+@layer components {
+  .ds-card {
+    @apply bg-white rounded-xl shadow-sm border border-neutral-200/50 transition-all duration-200 ease-out;
+  }
+
+  .ds-card:hover {
+    @apply shadow-md -translate-y-0.5;
+  }
+
+  .dark .ds-card {
+    @apply bg-neutral-800 border-neutral-700/50;
+  }
+
+  .ds-button-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+    @apply font-medium rounded-lg px-4 py-2.5 transition-all duration-200 ease-out;
+  }
+
+  .ds-button-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-neutral-200;
+    @apply font-medium rounded-lg px-4 py-2.5 transition-all duration-200 ease-out;
+  }
+
+  .ds-input {
+    @apply bg-background border border-neutral-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary focus:border-primary;
+    @apply transition-all duration-200 ease-out placeholder:text-neutral-400;
+  }
+
+  .ds-stepper-active {
+    @apply text-primary font-semibold;
+  }
+
+  .ds-stepper-inactive {
+    @apply text-neutral-400;
+  }
+
+  .ds-stepper-completed {
+    @apply text-success-600;
+  }
+
+  .ds-upload-zone {
+    @apply border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center;
+    @apply hover:border-primary hover:bg-primary/5 transition-all duration-200 ease-out;
+  }
+
+  .ds-upload-zone.drag-over {
+    @apply border-primary bg-primary/10;
+  }
+
+  .ds-table-row {
+    @apply hover:bg-neutral-50 transition-colors duration-150 ease-out;
+  }
+
+  .dark .ds-table-row {
+    @apply hover:bg-neutral-800/50;
+  }
+
+  .ds-status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .ds-status-done {
+    @apply bg-success-100 text-success-800;
+  }
+
+  .ds-status-error {
+    @apply bg-error-100 text-error-800;
+  }
+
+  .ds-status-pending {
+    @apply bg-neutral-100 text-neutral-600;
+  }
+
+  .dark .ds-status-done {
+    @apply bg-success-900/30 text-success-300;
+  }
+
+  .dark .ds-status-error {
+    @apply bg-error-900/30 text-error-300;
+  }
+
+  .dark .ds-status-pending {
+    @apply bg-neutral-800 text-neutral-300;
+  }
+}
+
+/* Animation utilities */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }

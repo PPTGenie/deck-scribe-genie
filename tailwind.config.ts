@@ -1,4 +1,6 @@
+
 import type { Config } from "tailwindcss";
+import { designTokens } from "./src/styles/tokens";
 
 export default {
 	darkMode: ["class"],
@@ -18,6 +20,18 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+			},
+			fontSize: {
+				xs: ['12px', { lineHeight: '1.4' }],
+				sm: ['14px', { lineHeight: '1.5' }],
+				base: ['15px', { lineHeight: '1.5' }],
+				lg: ['16px', { lineHeight: '1.5' }],
+				xl: ['18px', { lineHeight: '1.333' }],
+				'2xl': ['20px', { lineHeight: '1.333' }],
+				'3xl': ['24px', { lineHeight: '1.333' }],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -26,7 +40,17 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					foreground: 'hsl(var(--primary-foreground))',
+					50: '#eef2ff',
+					100: '#e0e7ff',
+					200: '#c7d2fe',
+					300: '#a5b4fc',
+					400: '#818cf8',
+					500: '#6366f1',
+					600: '#4f46e5',
+					700: '#4338ca',
+					800: '#3730a3',
+					900: '#312e81',
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -42,7 +66,17 @@ export default {
 				},
 				accent: {
 					DEFAULT: 'hsl(var(--accent))',
-					foreground: 'hsl(var(--accent-foreground))'
+					foreground: 'hsl(var(--accent-foreground))',
+					50: '#f0f9ff',
+					100: '#e0f2fe',
+					200: '#bae6fd',
+					300: '#7dd3fc',
+					400: '#38bdf8',
+					500: '#0ea5e9',
+					600: '#0284c7',
+					700: '#0369a1',
+					800: '#075985',
+					900: '#0c4a6e',
 				},
 				popover: {
 					DEFAULT: 'hsl(var(--popover))',
@@ -61,7 +95,32 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				success: {
+					50: '#ecfdf5',
+					100: '#d1fae5',
+					200: '#a7f3d0',
+					300: '#6ee7b7',
+					400: '#34d399',
+					500: '#10b981',
+					600: '#059669',
+					700: '#047857',
+					800: '#065f46',
+					900: '#064e3b',
+				},
+				error: {
+					50: '#fdf2f8',
+					100: '#fce7f3',
+					200: '#fbcfe8',
+					300: '#f9a8d4',
+					400: '#f472b6',
+					500: '#f43f5e',
+					600: '#e11d48',
+					700: '#be185d',
+					800: '#9f1239',
+					900: '#881337',
+				},
+				neutral: designTokens.colors.neutral,
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -89,7 +148,17 @@ export default {
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out'
-			}
+			},
+			spacing: {
+				'18': '4.5rem',
+				'88': '22rem',
+			},
+			boxShadow: {
+				'ds-sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+				'ds-md': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+				'ds-lg': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+				'ds-xl': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+			},
 		}
 	},
 	plugins: [require("tailwindcss-animate")],
