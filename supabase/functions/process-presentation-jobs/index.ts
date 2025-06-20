@@ -13,6 +13,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// FIXED: Add filename normalization helper to match frontend logic
+const normalizeFilename = (filename: string): string => {
+  return filename.toLowerCase().replace(/\.jpeg$/i, '.jpg');
+};
+
 const renderTemplate = (template: string, data: Record<string, string>): string => {
   if (!template) return "";
   return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => data[key.trim()] || "");
@@ -27,6 +32,7 @@ const sanitizeFilename = (filename: string): string => {
     .replace(/ß/g, 'ss')
     .replace(/ł/g, 'l').replace(/Ł/g, 'L');
 
+  // eslint-disable-next-line no-control-regex
   const invalidCharsRegex = /[<>:"/\\|?*`!^~[\]{}';=,+]|[\x00-\x1F]/g;
   const reservedNamesRegex = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
 
@@ -62,17 +68,19 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// FIXED: Image storage path resolver with STANDARDIZED path format
+// FIXED: Image storage path resolver with CONSISTENT filename normalization
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string, meta: any) => {
     const jobId = 'current';
     console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for ${tagName}=${tagValue}`);
     
     try {
-      // CRITICAL FIX: Use EXACT same standardized path as upload
-      const standardizedPath = `${userId}/${templateId}/${tagValue}`;
+      // CRITICAL FIX: Apply same normalization as upload process
+      const normalizedTagValue = normalizeFilename(tagValue);
+      const standardizedPath = `${userId}/${templateId}/${normalizedTagValue}`;
       
-      console.log(`${logPrefix(jobId)} 🔍 Attempting to retrieve image from STANDARDIZED path: ${standardizedPath}`);
+      console.log(`${logPrefix(jobId)} 🔍 Original CSV value: "${tagValue}" -> normalized: "${normalizedTagValue}"`);
+      console.log(`${logPrefix(jobId)} 🔍 Attempting to retrieve image from NORMALIZED path: ${standardizedPath}`);
       
       try {
         const { data, error } = await supabaseAdmin.storage
@@ -81,16 +89,16 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
 
         if (!error && data) {
           const imageBuffer = new Uint8Array(await data.arrayBuffer());
-          console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND at standardized path: ${standardizedPath} (${imageBuffer.length} bytes)`);
+          console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND at normalized path: ${standardizedPath} (${imageBuffer.length} bytes)`);
           return imageBuffer;
         } else {
-          console.error(`${logPrefix(jobId)} ❌ Image not found at standardized path: ${standardizedPath}`, error);
+          console.error(`${logPrefix(jobId)} ❌ Image not found at normalized path: ${standardizedPath}`, error);
         }
       } catch (pathError: any) {
-        console.error(`${logPrefix(jobId)} 💥 Error accessing standardized path: ${standardizedPath}`, pathError);
+        console.error(`${logPrefix(jobId)} 💥 Error accessing normalized path: ${standardizedPath}`, pathError);
       }
 
-      console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: ${tagValue} at path: ${standardizedPath}`);
+      console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: "${tagValue}" (normalized: "${normalizedTagValue}") at path: ${standardizedPath}`);
       
       if (missingImageBehavior === 'placeholder') {
         console.log(`${logPrefix(jobId)} 🔄 Using placeholder image for missing: ${tagValue}`);
@@ -99,7 +107,7 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
         console.log(`${logPrefix(jobId)} ⏭️ Skipping missing image: ${tagValue}`);
         return null;
       } else if (missingImageBehavior === 'fail') {
-        throw new Error(`Missing required image: ${tagValue} at path: ${standardizedPath}`);
+        throw new Error(`Missing required image: ${tagValue} (normalized: ${normalizedTagValue}) at path: ${standardizedPath}`);
       }
       
       return createMissingImagePlaceholder();
@@ -210,7 +218,7 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Configuration ---
+    // --- 3. Setup Image Configuration with FIXED normalization ---
     const missingImageBehavior = job.missing_image_behavior || 'placeholder';
     console.log(`${logPrefix(job.id)} 🎯 IMAGE BEHAVIOR: ${missingImageBehavior}`);
     

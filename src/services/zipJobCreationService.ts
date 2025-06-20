@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { CsvPreview } from '@/types/files';
@@ -21,6 +22,11 @@ interface ZipJobCreationParams {
     setJobProgress: SetJobProgress;
     navigate: NavigateFunction;
 }
+
+// FIXED: Add filename normalization helper to match frontend logic
+const normalizeFilename = (filename: string): string => {
+  return filename.toLowerCase().replace(/\.jpeg$/i, '.jpg');
+};
 
 export async function createZipJob({
     extractedFiles,
@@ -129,11 +135,11 @@ export async function createZipJob({
 
     console.log('✅ CSV record created with ID:', csvData.id);
 
-    // 5. Upload Images using STANDARDIZED path: {user_id}/{template_id}/{filename}
+    // 5. FIXED: Upload Images using STANDARDIZED path with filename normalization
     const imageCount = Object.keys(extractedFiles.images).length;
     let uploadedImages = 0;
     
-    console.log(`🖼️ Starting upload of ${imageCount} images using standardized path format`);
+    console.log(`🖼️ Starting upload of ${imageCount} images using standardized path format with normalization`);
 
     for (const [filename, file] of Object.entries(extractedFiles.images)) {
         setJobProgress({ 
@@ -141,10 +147,11 @@ export async function createZipJob({
             message: `Uploading image ${uploadedImages + 1}/${imageCount}: ${filename}` 
         });
 
-        // CRITICAL: Use standardized path format for consistent retrieval
-        const imagePath = `${user.id}/${templateData.id}/${filename}`;
+        // CRITICAL FIX: Apply consistent filename normalization
+        const normalizedFilename = normalizeFilename(filename);
+        const imagePath = `${user.id}/${templateData.id}/${normalizedFilename}`;
         
-        console.log(`📸 Uploading image "${filename}" to standardized path:`, imagePath);
+        console.log(`📸 Uploading image "${filename}" -> normalized: "${normalizedFilename}" to path:`, imagePath);
         
         await withRetry(async () => {
             const { error } = await supabase.storage
@@ -161,11 +168,11 @@ export async function createZipJob({
             },
         });
 
-        console.log(`✅ Successfully uploaded image "${filename}" to path:`, imagePath);
+        console.log(`✅ Successfully uploaded image "${filename}" as "${normalizedFilename}" to path:`, imagePath);
         uploadedImages++;
     }
 
-    console.log(`🎉 All ${imageCount} images uploaded successfully using standardized paths`);
+    console.log(`🎉 All ${imageCount} images uploaded successfully using standardized paths with normalization`);
 
     // 6. Insert Job record with missing_image_behavior
     setJobProgress({ value: 85, message: 'Creating job...' });

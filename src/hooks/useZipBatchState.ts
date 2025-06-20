@@ -26,6 +26,8 @@ export function useZipBatchState() {
       setExtractedVariables(null);
       setCsvPreview(null);
       setMissingVariables([]);
+      setFilenameTemplate('');
+      setFilenameError('Filename template must contain at least one variable.');
     }
   }, [zipFile]);
 
@@ -74,11 +76,14 @@ export function useZipBatchState() {
     }
   }, [extractedVariables, csvPreview]);
 
-  // Set default filename template when CSV preview is available
+  // FIXED: Set default filename template when CSV preview is available
   useEffect(() => {
     if (csvPreview?.headers.length && !filenameTemplate) {
       const firstHeader = csvPreview.headers[0];
-      setFilenameTemplate(`{{${firstHeader}}}`);
+      const defaultTemplate = `{{${firstHeader}}}`;
+      setFilenameTemplate(defaultTemplate);
+      setFilenameError(null); // Clear error when setting valid default
+      console.log('🏷️ Set default filename template:', defaultTemplate);
     }
   }, [csvPreview, filenameTemplate]);
   

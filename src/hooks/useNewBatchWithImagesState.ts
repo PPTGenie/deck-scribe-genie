@@ -5,7 +5,7 @@ import type { TemplateVariables, CsvPreview } from '@/types/files';
 interface UploadedImage {
   file: File;
   normalized: string;
-  preview: string; // Add preview property to match ImageFile interface
+  preview: string;
 }
 
 export function useNewBatchWithImagesState() {
@@ -15,8 +15,8 @@ export function useNewBatchWithImagesState() {
   const [error, setError] = useState<string | null>(null);
   const [extractedVariables, setExtractedVariables] = useState<TemplateVariables | null>(null);
   const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
-  const [filenameTemplate, setFilenameTemplate] = useState('{{name}}');
-  const [filenameError, setFilenameError] = useState<string | null>(null);
+  const [filenameTemplate, setFilenameTemplate] = useState('');
+  const [filenameError, setFilenameError] = useState<string | null>('Filename template must contain at least one variable.');
   const [isExtracting, setIsExtracting] = useState(false);
   const [missingImageBehavior, setMissingImageBehavior] = useState('fail');
 
@@ -36,13 +36,45 @@ export function useNewBatchWithImagesState() {
       )]
     : [];
 
+  // FIXED: Set default filename template when CSV preview is available
+  useEffect(() => {
+    if (csvPreview?.headers.length && !filenameTemplate) {
+      const firstHeader = csvPreview.headers[0];
+      const defaultTemplate = `{{${firstHeader}}}`;
+      setFilenameTemplate(defaultTemplate);
+      setFilenameError(null); // Clear error when setting valid default
+      console.log('🏷️ Set default filename template:', defaultTemplate);
+    }
+  }, [csvPreview, filenameTemplate]);
+
+  // Custom setter for uploaded images that ensures preview URLs are created
+  const setUploadedImagesWithPreviews = (images: UploadedImage[] | ((prev: UploadedImage[]) => UploadedImage[])) => {
+    if (typeof images === 'function') {
+      setUploadedImages(prevImages => {
+        const newImages = images(prevImages);
+        // Ensure all images have preview URLs
+        return newImages.map(img => ({
+          ...img,
+          preview: img.preview || URL.createObjectURL(img.file)
+        }));
+      });
+    } else {
+      // Ensure all images have preview URLs
+      const imagesWithPreviews = images.map(img => ({
+        ...img,
+        preview: img.preview || URL.createObjectURL(img.file)
+      }));
+      setUploadedImages(imagesWithPreviews);
+    }
+  };
+
   return {
     templateFile,
     setTemplateFile,
     csvFile,
     setCsvFile,
     uploadedImages,
-    setUploadedImages,
+    setUploadedImages: setUploadedImagesWithPreviews,
     error,
     setError,
     extractedVariables,
