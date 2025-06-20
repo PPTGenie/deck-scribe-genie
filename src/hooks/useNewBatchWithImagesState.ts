@@ -5,6 +5,7 @@ import type { TemplateVariables, CsvPreview } from '@/types/files';
 interface UploadedImage {
   file: File;
   normalized: string;
+  preview: string; // Add preview property to match ImageFile interface
 }
 
 export function useNewBatchWithImagesState() {
