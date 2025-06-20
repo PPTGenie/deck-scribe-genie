@@ -1,9 +1,9 @@
+
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
-import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.1.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
@@ -54,7 +54,11 @@ const sanitizeFilename = (filename: string): string => {
 
 const updateProgress = async (supabaseAdmin: any, jobId: string, progress: number, step: string) => {
   console.log(`${logPrefix(jobId)} ${step} (${progress}%)`);
-  await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
+  try {
+    await supabaseAdmin.from('jobs').update({ progress }).eq('id', jobId);
+  } catch (error) {
+    console.error(`${logPrefix(jobId)} Failed to update progress:`, error);
+  }
 };
 
 // Create a red "Missing Image" placeholder as base64
@@ -128,47 +132,68 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
 
 serve(async (req) => {
   console.log(`🚀 PROCESS-PRESENTATION-JOBS FUNCTION INVOKED at: ${new Date().toISOString()}`);
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // CRITICAL FIX: Use service role key for admin operations
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
-
-  // --- 1. Atomically Claim a Job ---
-  const { data: job, error: claimError } = await supabaseAdmin
-    .from('jobs')
-    .update({ status: 'processing' })
-    .eq('status', 'queued')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .select(`
-      *,
-      templates(storage_path, user_id),
-      csv_uploads(storage_path, rows_count)
-    `)
-    .single();
-
-  if (claimError || !job) {
-    if (claimError && claimError.code !== 'PGRST116') {
-      console.error('Error claiming job:', claimError);
-    }
-    return new Response(JSON.stringify({ message: 'No queued jobs found.' }), {
+  let supabaseAdmin;
+  try {
+    // CRITICAL FIX: Use service role key for admin operations
+    supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+  } catch (error) {
+    console.error('Failed to create Supabase client:', error);
+    return new Response(JSON.stringify({ error: 'Failed to initialize Supabase client' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
+      status: 500,
     });
   }
 
-  console.log(`${logPrefix(job.id)} 🎯 CLAIMED JOB SUCCESSFULLY`);
-  console.log(`${logPrefix(job.id)} 📋 Job details:`, {
-    jobId: job.id,
-    userId: job.templates.user_id,
-    templateId: job.template_id,
-    missingImageBehavior: job.missing_image_behavior
-  });
+  let job;
+  try {
+    // --- 1. Atomically Claim a Job ---
+    const { data: jobData, error: claimError } = await supabaseAdmin
+      .from('jobs')
+      .update({ status: 'processing' })
+      .eq('status', 'queued')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .select(`
+        *,
+        templates(storage_path, user_id),
+        csv_uploads(storage_path, rows_count)
+      `)
+      .single();
+
+    if (claimError || !jobData) {
+      if (claimError && claimError.code !== 'PGRST116') {
+        console.error('Error claiming job:', claimError);
+      }
+      return new Response(JSON.stringify({ message: 'No queued jobs found.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
+    job = jobData;
+    console.log(`${logPrefix(job.id)} 🎯 CLAIMED JOB SUCCESSFULLY`);
+    console.log(`${logPrefix(job.id)} 📋 Job details:`, {
+      jobId: job.id,
+      userId: job.templates.user_id,
+      templateId: job.template_id,
+      missingImageBehavior: job.missing_image_behavior
+    });
+
+  } catch (error: any) {
+    console.error('Error in job claiming:', error);
+    return new Response(JSON.stringify({ error: 'Failed to claim job' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
+  }
   
   const storageClient = supabaseAdmin;
 
@@ -252,7 +277,7 @@ serve(async (req) => {
           
           for (const imgColumn of imageColumns) {
             if (processedRow[imgColumn]) {
-              console.log(`${logPrefix(job.id)} 🖼️ Fetching image binary for ${imgColumn}=${processedRow[imgColumn]}`);
+              console.log(`${logPrefix(job.id)} 🖼️ Processing image field ${imgColumn}=${processedRow[imgColumn]}`);
               try {
                 const imageBuffer = await imageGetter(processedRow[imgColumn]);
                 if (imageBuffer) {
@@ -272,42 +297,19 @@ serve(async (req) => {
             }
           }
           
-          console.log(`${logPrefix(job.id)} 🎨 Final processed data structure:`, {
-            ...processedRow,
-            ...Object.fromEntries(
-              Object.entries(processedRow).map(([key, value]) => [
-                key, 
-                value instanceof Uint8Array ? `[Binary data: ${value.length} bytes]` : value
-              ])
-            )
-          });
+          console.log(`${logPrefix(job.id)} 🎨 Processing template with data containing ${imageColumns.length} image fields`);
           
           const zip = new PizZip(new Uint8Array(templateData));
           
-          // CRITICAL FIX: Configure image module with proper getSize function
-          const imageModule = new ImageModule({
-            centered: false,
-            getImage: (tagValue: string, tagName: string, meta: any) => {
-              console.log(`${logPrefix(job.id)} 📐 Image module getImage called for tagName=${tagName}, tagValue type: ${typeof tagValue}`);
-              // The tagValue here should already be a Uint8Array from our preprocessing
-              return tagValue;
-            },
-            getSize: (img: Uint8Array, tagValue: string, tagName: string, meta: any) => {
-              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}, image size: ${img?.length || 'undefined'} bytes`);
-              // Return reasonable default dimensions - actual image dimensions would require image parsing
-              return [300, 200]; // Width x Height in pixels
-            }
-          });
-
+          // Create a simple docxtemplater instance first without modules
           const doc = new Docxtemplater(zip, {
               paragraphLoop: true,
               linebreaks: true,
               delimiters: { start: '{{', end: '}}' },
               nullGetter: () => "",
-              modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING with processed data object (images as binary)`);
+          console.log(`${logPrefix(job.id)} 🎨 RENDERING with processed data`);
           
           // CRITICAL FIX: Pass the processed row with binary image data
           doc.render(processedRow);
@@ -447,16 +449,23 @@ serve(async (req) => {
       status: 200,
     });
 
-  } catch (error) {
-    console.error(`${logPrefix(job.id)} 💥 CRITICAL ERROR occurred:`, error);
-    await supabaseAdmin
-      .from('jobs')
-      .update({
-        status: 'error',
-        error_msg: error.message,
-        finished_at: new Date().toISOString(),
-      })
-      .eq('id', job.id);
+  } catch (error: any) {
+    console.error(`${logPrefix(job?.id || 'unknown')} 💥 CRITICAL ERROR occurred:`, error);
+    
+    if (job?.id) {
+      try {
+        await supabaseAdmin
+          .from('jobs')
+          .update({
+            status: 'error',
+            error_msg: error.message,
+            finished_at: new Date().toISOString(),
+          })
+          .eq('id', job.id);
+      } catch (updateError) {
+        console.error(`${logPrefix(job.id)} Failed to update job status to error:`, updateError);
+      }
+    }
 
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
