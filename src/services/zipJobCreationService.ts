@@ -34,11 +34,20 @@ export async function createZipJob({
         throw new Error('Missing required template or CSV file');
     }
 
+    console.log('🚀 Starting ZIP job creation with extracted files:', {
+        templateName: extractedFiles.template.name,
+        csvName: extractedFiles.csv.name,
+        imageCount: Object.keys(extractedFiles.images).length,
+        csvRows: csvPreview.data.length
+    });
+
     // 1. Upload Template
     setJobProgress({ value: 5, message: `Uploading template file...` });
     const templateExt = extractedFiles.template.name.split('.').pop() || 'pptx';
     const templateFileName = `${crypto.randomUUID()}.${templateExt}`;
     const templatePath = `${user.id}/${templateFileName}`;
+    
+    console.log('📄 Uploading template to:', templatePath);
     
     await withRetry(async () => {
         const { error } = await supabase.storage
@@ -71,11 +80,15 @@ export async function createZipJob({
         }
     });
 
+    console.log('✅ Template record created with ID:', templateData.id);
+
     // 3. Upload CSV
     setJobProgress({ value: 25, message: `Uploading data file...` });
     const csvExt = extractedFiles.csv.name.split('.').pop() || 'csv';
     const csvFileName = `${crypto.randomUUID()}.${csvExt}`;
     const csvPath = `${user.id}/${csvFileName}`;
+    
+    console.log('📊 Uploading CSV to:', csvPath);
     
     await withRetry(async () => {
         const { error } = await supabase.storage
@@ -112,9 +125,13 @@ export async function createZipJob({
         }
     });
 
-    // 5. Upload Images
+    console.log('✅ CSV record created with ID:', csvData.id);
+
+    // 5. Upload Images using STANDARDIZED path: {user_id}/{template_id}/{filename}
     const imageCount = Object.keys(extractedFiles.images).length;
     let uploadedImages = 0;
+    
+    console.log(`🖼️ Starting upload of ${imageCount} images using standardized path format`);
 
     for (const [filename, file] of Object.entries(extractedFiles.images)) {
         setJobProgress({ 
@@ -122,7 +139,10 @@ export async function createZipJob({
             message: `Uploading image ${uploadedImages + 1}/${imageCount}: ${filename}` 
         });
 
+        // CRITICAL: Use standardized path format for consistent retrieval
         const imagePath = `${user.id}/${templateData.id}/${filename}`;
+        
+        console.log(`📸 Uploading image "${filename}" to standardized path:`, imagePath);
         
         await withRetry(async () => {
             const { error } = await supabase.storage
@@ -139,10 +159,13 @@ export async function createZipJob({
             },
         });
 
+        console.log(`✅ Successfully uploaded image "${filename}" to path:`, imagePath);
         uploadedImages++;
     }
 
-    // 6. Insert Job record
+    console.log(`🎉 All ${imageCount} images uploaded successfully using standardized paths`);
+
+    // 6. Insert Job record with missing_image_behavior
     setJobProgress({ value: 85, message: 'Creating job...' });
     await withRetry(async () => {
         const { error } = await supabase
@@ -152,6 +175,7 @@ export async function createZipJob({
                 template_id: templateData.id,
                 csv_id: csvData.id,
                 filename_template: filenameTemplate,
+                missing_image_behavior: 'fail', // Strict validation - fail if any image is missing
             });
         if (error) throw error;
     }, {
@@ -160,6 +184,8 @@ export async function createZipJob({
             setJobProgress({ value: 85, message: `Job creation failed. Retrying... (${attempt}/3)` });
         }
     });
+    
+    console.log('✅ Job record created successfully');
     
     // 7. Trigger edge function to start processing immediately
     setJobProgress({ value: 95, message: 'Triggering processing...' });

@@ -3,7 +3,7 @@ import React from 'react';
 import { Stepper } from '@/components/ui/stepper';
 import { useNewBatchWithImagesState } from '@/hooks/useNewBatchWithImagesState';
 import { useStepNavigation } from '@/hooks/useStepNavigation';
-import { useJobCreation } from '@/hooks/useJobCreation';
+import { useZipJobCreation } from '@/hooks/useZipJobCreation';
 import { useStorageValidation } from '@/hooks/useStorageValidation';
 import { StepCard } from './StepCard';
 import { UploadTemplateStep } from './UploadTemplateStep';
@@ -41,9 +41,25 @@ export function NewBatchWithImagesFlow() {
     shouldValidate: hasImageVariables && currentStep >= 2
   });
 
-  const { isStartingJob, jobProgress, handleStartJob } = useJobCreation({
-    templateFile: state.templateFile,
-    csvFile: state.csvFile,
+  // Create extracted files structure for ZIP job creation
+  const extractedFiles = React.useMemo(() => {
+    if (!state.templateFile || !state.csvFile) return null;
+    
+    const images: Record<string, File> = {};
+    state.uploadedImages.forEach(imageFile => {
+      images[imageFile.file.name] = imageFile.file;
+    });
+
+    return {
+      template: { file: state.templateFile, name: state.templateFile.name },
+      csv: { file: state.csvFile, name: state.csvFile.name, data: state.csvPreview?.data || [] },
+      images
+    };
+  }, [state.templateFile, state.csvFile, state.uploadedImages, state.csvPreview]);
+
+  // Use ZIP job creation hook instead of regular job creation
+  const { isStartingJob, jobProgress, handleStartJob } = useZipJobCreation({
+    extractedFiles,
     csvPreview: state.csvPreview,
     filenameTemplate: state.filenameTemplate,
     filenameError: state.filenameError,
@@ -61,7 +77,7 @@ export function NewBatchWithImagesFlow() {
     }
     
     if (hasImageVariables && currentStep === 2) {
-      // Image step - check if all required images are uploaded (local validation only)
+      // Image step - STRICT validation: every CSV image value must have a matching uploaded image
       const missingImages = state.csvImageValues.filter(csvValue => {
         const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
         return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);

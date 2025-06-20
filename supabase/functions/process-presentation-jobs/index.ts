@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -63,43 +62,44 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// Image storage path resolver
+// FIXED: Image storage path resolver with STANDARDIZED path format
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string, meta: any) => {
     const jobId = 'current';
     console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for ${tagName}=${tagValue}`);
     
     try {
-      const pathsToTry = [
-        `${userId}/${templateId}/${tagValue}`,
-        `${userId}/${tagValue}`,
-        tagValue,
-      ];
+      // CRITICAL FIX: Use EXACT same standardized path as upload
+      const standardizedPath = `${userId}/${templateId}/${tagValue}`;
       
-      for (const imagePath of pathsToTry) {
-        try {
-          const { data, error } = await supabaseAdmin.storage
-            .from('images')
-            .download(imagePath);
+      console.log(`${logPrefix(jobId)} 🔍 Attempting to retrieve image from STANDARDIZED path: ${standardizedPath}`);
+      
+      try {
+        const { data, error } = await supabaseAdmin.storage
+          .from('images')
+          .download(standardizedPath);
 
-          if (!error && data) {
-            const imageBuffer = new Uint8Array(await data.arrayBuffer());
-            console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND: ${imagePath} (${imageBuffer.length} bytes)`);
-            return imageBuffer;
-          }
-        } catch (pathError: any) {
-          continue;
+        if (!error && data) {
+          const imageBuffer = new Uint8Array(await data.arrayBuffer());
+          console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND at standardized path: ${standardizedPath} (${imageBuffer.length} bytes)`);
+          return imageBuffer;
+        } else {
+          console.error(`${logPrefix(jobId)} ❌ Image not found at standardized path: ${standardizedPath}`, error);
         }
+      } catch (pathError: any) {
+        console.error(`${logPrefix(jobId)} 💥 Error accessing standardized path: ${standardizedPath}`, pathError);
       }
 
-      console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: ${tagValue}`);
+      console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: ${tagValue} at path: ${standardizedPath}`);
       
       if (missingImageBehavior === 'placeholder') {
+        console.log(`${logPrefix(jobId)} 🔄 Using placeholder image for missing: ${tagValue}`);
         return createMissingImagePlaceholder();
       } else if (missingImageBehavior === 'skip') {
+        console.log(`${logPrefix(jobId)} ⏭️ Skipping missing image: ${tagValue}`);
         return null;
       } else if (missingImageBehavior === 'fail') {
-        throw new Error(`Missing required image: ${tagValue}`);
+        throw new Error(`Missing required image: ${tagValue} at path: ${standardizedPath}`);
       }
       
       return createMissingImagePlaceholder();
@@ -154,6 +154,12 @@ serve(async (req) => {
   }
 
   console.log(`${logPrefix(job.id)} 🎯 CLAIMED JOB SUCCESSFULLY`);
+  console.log(`${logPrefix(job.id)} 📋 Job details:`, {
+    jobId: job.id,
+    userId: job.templates.user_id,
+    templateId: job.template_id,
+    missingImageBehavior: job.missing_image_behavior
+  });
   
   const storageClient = supabaseAdmin;
 
@@ -196,6 +202,11 @@ serve(async (req) => {
     
     const totalRows = parsedCsv.length;
     console.log(`${logPrefix(job.id)} ✅ Successfully parsed ${totalRows} data rows`);
+    console.log(`${logPrefix(job.id)} 📊 CSV headers:`, headers);
+
+    // CRITICAL: Identify image columns from headers
+    const imageColumns = headers.filter(header => header.trim().endsWith('_img'));
+    console.log(`${logPrefix(job.id)} 🖼️ Detected image columns:`, imageColumns);
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
@@ -224,17 +235,23 @@ serve(async (req) => {
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
         try {
-          console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows} with simplified image handling`);
+          console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
+          console.log(`${logPrefix(job.id)} 📝 Row data:`, row);
+          
+          // CRITICAL FIX: Identify image variables and prepare data assembly
+          const imageVariablesInRow = imageColumns.filter(col => row[col]);
+          console.log(`${logPrefix(job.id)} 🖼️ Image variables in this row:`, imageVariablesInRow.map(col => `${col}=${row[col]}`));
           
           const zip = new PizZip(new Uint8Array(templateData));
           
-          // Create image module with size function
+          // CRITICAL FIX: Configure image module with proper getSize function
           const imageModule = new ImageModule({
             centered: false,
             getImage: imageGetter,
             getSize: (img: Uint8Array, tagValue: string, tagName: string, meta: any) => {
-              // Return original size - no resizing for now
-              return [300, 300]; // Default size, will be original image size
+              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}=${tagValue}, image size: ${img.length} bytes`);
+              // Return reasonable default dimensions - actual image dimensions would require image parsing
+              return [300, 200]; // Width x Height in pixels
             }
           });
 
@@ -246,9 +263,27 @@ serve(async (req) => {
               modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING with data:`, Object.keys(row));
+          console.log(`${logPrefix(job.id)} 🎨 RENDERING with complete data object including image variables`);
+          
+          // CRITICAL FIX: Data assembly - pass the row data directly 
+          // The imageGetter will handle fetching binary data for _img variables
           doc.render(row);
+          
           const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
+          
+          // VALIDATION: Check if generated PPTX contains media files
+          try {
+            const validationZip = new PizZip(generatedBuffer);
+            const files = Object.keys(validationZip.files);
+            const mediaFiles = files.filter(f => f.startsWith('ppt/media/'));
+            console.log(`${logPrefix(job.id)} 🔍 Generated PPTX contains ${mediaFiles.length} media files:`, mediaFiles);
+            
+            if (imageVariablesInRow.length > 0 && mediaFiles.length === 0) {
+              console.warn(`${logPrefix(job.id)} ⚠️ Expected images but no media files found in generated PPTX`);
+            }
+          } catch (validationError) {
+            console.warn(`${logPrefix(job.id)} ⚠️ Could not validate PPTX media contents:`, validationError);
+          }
           
           // Generate filename
           let outputFilename;
@@ -273,7 +308,7 @@ serve(async (req) => {
           
           const outputPath = `${job.user_id}/${job.id}/${finalFilename}`;
           
-          console.log(`${logPrefix(job.id)} ⬆️ UPLOADING: ${outputPath}`);
+          console.log(`${logPrefix(job.id)} ⬆️ UPLOADING: ${outputPath} (${generatedBuffer.length} bytes)`);
           const { error: uploadError } = await storageClient.storage
               .from('outputs')
               .upload(outputPath, generatedBuffer, { 
