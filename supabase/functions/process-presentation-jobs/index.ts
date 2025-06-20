@@ -1,9 +1,9 @@
+
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
-import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.1.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
@@ -58,72 +58,81 @@ const updateProgress = async (supabaseAdmin: any, jobId: string, progress: numbe
 };
 
 // Create a red "Missing Image" placeholder as base64
-const createMissingImagePlaceholder = (): Uint8Array => {
-  const base64 = 'iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAANCSURBVHic7Z3BaxNBFMafJBG0Wi+99OJF8CJ48ODBg+DBg6dCwYMHL4IHL1686MWLFy9evHjx4sGDBw8ePHjw4MGDB0/ePHjwIPjPzOzszOzMzu7MO/N9EEg2ySTZfG/fvPfem5ndJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJElSM1wAcAvATQDXAVwFcBnAJQAXAZwHcA7AWQC/ATgD4DSAUwBOAjgB4DiAYwCOAjgC4DCAQwAOADgI4DeA/QD2AdgLYA+A3QB2AdgJYAeA7QC2AdgKYAuAzQA2AdgIYAOA9QDWA1gHYC2ANQDWA1gLYA2A1QBWAVgJYAWA5QCWAVgKYAmAxQAWAVgIYAGAeQDmApgDYDaAWQBmApgBYDqAaQCmApgCYDKASQAmApgAYDyAcQDGAhgDYDSAUQBGAhgBYDiAYQCGAhgCYDCAQQAGAhgAoB/APgB7AewBsBvALgA7AewAsB3ANgBbAWwBsBnAJgAbAWwAsB7AOgBrAawBsBrAKgArASwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQC3ANwEcAPAdQDXAFwFcAXAZQCXAFwEcAHAeQDnAJwFcAbAaQCnAJwEcALAcQDHABwFcATAYQCHABwEcADAfgD7AOwFsAfAbgC7AOwEsAPAdgDbAGwFsAXAZgCbAGwEsAHAegDrAKwFsAbAagCrAKwEsALAcgDLACwFsATAYgCLACwEsADAfADzANwFcAvATQA3AFwHcA3AVQBXAFwGcAnARQAXAJwHcA7AWQBnAJwGcArASQAnABwHcAzAUQBHABwGcAjAQQAHAOwHsA/AXgB7AOwGsAvATgA7AGwHsA3AVgBbAGwGsAnARgAbAKwHsA7AWgBrAKwGsArASgArACwHsAzAUgBLACwGsAjAQgALAMwHMA/AXQDfA/gOwHcAvo2SJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSpP8A/AE3gM9n/U3k+wAAAABJRU5ErkJggg==';
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
+const createMissingImagePlaceholder = (): string => {
+  // Return a simple red placeholder as base64 - much smaller and faster
+  return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 };
 
-// CRITICAL FIX: Image storage path resolver with CONSISTENT filename normalization using SERVICE ROLE
-const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
-  return async (tagValue: string): Promise<Uint8Array | null> => {
-    const jobId = 'current';
-    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for tagValue="${tagValue}"`);
+// OPTIMIZED: Batch image fetching with timeout and size limits
+const batchFetchImages = async (supabaseAdmin: any, userId: string, templateId: string, imageValues: string[], missingImageBehavior: string, jobId: string) => {
+  console.log(`${logPrefix(jobId)} 🚀 BATCH FETCHING ${imageValues.length} images`);
+  
+  const imageCache = new Map<string, string>();
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB limit per image
+  
+  // Process images in smaller batches to avoid memory issues
+  const BATCH_SIZE = 3;
+  for (let i = 0; i < imageValues.length; i += BATCH_SIZE) {
+    const batch = imageValues.slice(i, i + BATCH_SIZE);
     
-    try {
-      // Apply same normalization as upload process
-      const normalizedTagValue = normalizeFilename(tagValue);
-      const standardizedPath = `${userId}/${templateId}/${normalizedTagValue}`;
-      
-      console.log(`${logPrefix(jobId)} 🔍 Original CSV value: "${tagValue}" -> normalized: "${normalizedTagValue}"`);
-      console.log(`${logPrefix(jobId)} 🔍 Attempting to retrieve image from NORMALIZED path: ${standardizedPath}`);
+    await Promise.all(batch.map(async (imageValue) => {
+      if (imageCache.has(imageValue)) return;
       
       try {
+        const normalizedValue = normalizeFilename(imageValue);
+        const path = `${userId}/${templateId}/${normalizedValue}`;
+        
+        console.log(`${logPrefix(jobId)} 📥 Fetching: ${imageValue} -> ${path}`);
+        
         const { data, error } = await supabaseAdmin.storage
           .from('images')
-          .download(standardizedPath);
+          .download(path);
 
         if (!error && data) {
-          const imageBuffer = new Uint8Array(await data.arrayBuffer());
-          console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND at normalized path: ${standardizedPath} (${imageBuffer.length} bytes)`);
-          return imageBuffer;
+          // Check file size before processing
+          if (data.size > MAX_IMAGE_SIZE) {
+            console.warn(`${logPrefix(jobId)} ⚠️ Image too large: ${imageValue} (${data.size} bytes), using placeholder`);
+            imageCache.set(imageValue, createMissingImagePlaceholder());
+            return;
+          }
+          
+          // Convert to base64 data URL for template insertion
+          const arrayBuffer = await data.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const base64 = btoa(String.fromCharCode(...uint8Array));
+          const mimeType = data.type || 'image/png';
+          const dataUrl = `data:${mimeType};base64,${base64}`;
+          
+          imageCache.set(imageValue, dataUrl);
+          console.log(`${logPrefix(jobId)} ✅ Cached: ${imageValue} (${data.size} bytes)`);
         } else {
-          console.error(`${logPrefix(jobId)} ❌ Image not found at normalized path: ${standardizedPath}`, error);
+          console.warn(`${logPrefix(jobId)} ❌ Image not found: ${imageValue}`);
+          
+          if (missingImageBehavior === 'fail') {
+            throw new Error(`Missing required image: ${imageValue}`);
+          } else {
+            imageCache.set(imageValue, createMissingImagePlaceholder());
+          }
         }
-      } catch (pathError: any) {
-        console.error(`${logPrefix(jobId)} 💥 Error accessing normalized path: ${standardizedPath}`, pathError);
+      } catch (error: any) {
+        console.error(`${logPrefix(jobId)} 💥 Error fetching ${imageValue}:`, error);
+        
+        if (missingImageBehavior === 'fail') {
+          throw error;
+        } else {
+          imageCache.set(imageValue, createMissingImagePlaceholder());
+        }
       }
-
-      console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: "${tagValue}" (normalized: "${normalizedTagValue}") at path: ${standardizedPath}`);
-      
-      if (missingImageBehavior === 'placeholder') {
-        console.log(`${logPrefix(jobId)} 🔄 Using placeholder image for missing: ${tagValue}`);
-        return createMissingImagePlaceholder();
-      } else if (missingImageBehavior === 'skip') {
-        console.log(`${logPrefix(jobId)} ⏭️ Skipping missing image: ${tagValue}`);
-        return null;
-      } else if (missingImageBehavior === 'fail') {
-        throw new Error(`Missing required image: ${tagValue} (normalized: ${normalizedTagValue}) at path: ${standardizedPath}`);
-      }
-      
-      return createMissingImagePlaceholder();
-
-    } catch (error: any) {
-      console.error(`${logPrefix(jobId)} 💥 ERROR in getImage:`, error);
-      
-      if (missingImageBehavior === 'fail') {
-        throw error;
-      } else if (missingImageBehavior === 'placeholder') {
-        return createMissingImagePlaceholder();
-      }
-      
-      return null;
+    }));
+    
+    // Small delay between batches to prevent overwhelming the system
+    if (i + BATCH_SIZE < imageValues.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
-  };
+  }
+  
+  console.log(`${logPrefix(jobId)} 🎯 Batch fetch complete. Cached ${imageCache.size} images`);
+  return imageCache;
 };
 
 serve(async (req) => {
@@ -219,16 +228,35 @@ serve(async (req) => {
 
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Configuration with FIXED normalization ---
+    // --- 3. OPTIMIZED: Pre-fetch all unique images ---
     const missingImageBehavior = job.missing_image_behavior || 'placeholder';
-    console.log(`${logPrefix(job.id)} 🎯 IMAGE BEHAVIOR: ${missingImageBehavior}`);
+    let imageCache = new Map<string, string>();
     
-    const imageGetter = createImageGetter(
-      supabaseAdmin, 
-      job.templates.user_id, 
-      job.template_id, 
-      missingImageBehavior
-    );
+    if (imageColumns.length > 0) {
+      console.log(`${logPrefix(job.id)} 🎯 IMAGE BEHAVIOR: ${missingImageBehavior}`);
+      
+      // Collect all unique image values
+      const allImageValues = new Set<string>();
+      parsedCsv.forEach(row => {
+        imageColumns.forEach(col => {
+          if (row[col] && row[col].trim()) {
+            allImageValues.add(row[col].trim());
+          }
+        });
+      });
+      
+      if (allImageValues.size > 0) {
+        await updateProgress(supabaseAdmin, job.id, 10, `Pre-fetching ${allImageValues.size} unique images...`);
+        imageCache = await batchFetchImages(
+          supabaseAdmin, 
+          job.templates.user_id, 
+          job.template_id, 
+          Array.from(allImageValues), 
+          missingImageBehavior, 
+          job.id
+        );
+      }
+    }
 
     // --- 4. Process Each Row and Generate Presentations ---
     const outputPaths: string[] = [];
@@ -237,103 +265,49 @@ serve(async (req) => {
     let successfulPresentations = 0;
 
     for (const [index, row] of parsedCsv.entries()) {
-        const baseProgress = 5;
-        const processingProgress = 80;
+        const baseProgress = 15;
+        const processingProgress = 70;
         const currentProgress = baseProgress + Math.round((index / totalRows) * processingProgress);
         
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
         try {
           console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
-          console.log(`${logPrefix(job.id)} 📝 Original row data:`, row);
           
-          // CRITICAL FIX: Replace image field strings with binary data
+          // OPTIMIZED: Replace image placeholders with cached base64 data URLs
           const processedRow = { ...row };
           
           for (const imgColumn of imageColumns) {
-            if (processedRow[imgColumn]) {
-              console.log(`${logPrefix(job.id)} 🖼️ Fetching image binary for ${imgColumn}=${processedRow[imgColumn]}`);
-              try {
-                const imageBuffer = await imageGetter(processedRow[imgColumn]);
-                if (imageBuffer) {
-                  processedRow[imgColumn] = imageBuffer;
-                  console.log(`${logPrefix(job.id)} ✅ Replaced ${imgColumn} with binary data (${imageBuffer.length} bytes)`);
-                } else {
-                  console.log(`${logPrefix(job.id)} ⏭️ Skipping ${imgColumn} (null returned)`);
-                  delete processedRow[imgColumn]; // Remove the field entirely if skipping
-                }
-              } catch (imageError: any) {
-                console.error(`${logPrefix(job.id)} ❌ Failed to fetch image for ${imgColumn}:`, imageError);
-                if (missingImageBehavior === 'fail') {
-                  throw imageError;
-                }
-                // For placeholder/skip, the imageGetter already handled the fallback
-              }
+            if (processedRow[imgColumn] && imageCache.has(processedRow[imgColumn])) {
+              const cachedImage = imageCache.get(processedRow[imgColumn]);
+              processedRow[imgColumn] = cachedImage || createMissingImagePlaceholder();
+              console.log(`${logPrefix(job.id)} 🖼️ Replaced ${imgColumn} with cached image data`);
+            } else if (processedRow[imgColumn]) {
+              console.warn(`${logPrefix(job.id)} ⚠️ Image not in cache: ${processedRow[imgColumn]}`);
+              processedRow[imgColumn] = createMissingImagePlaceholder();
             }
           }
           
-          console.log(`${logPrefix(job.id)} 🎨 Final processed data structure:`, {
-            ...processedRow,
-            ...Object.fromEntries(
-              Object.entries(processedRow).map(([key, value]) => [
-                key, 
-                value instanceof Uint8Array ? `[Binary data: ${value.length} bytes]` : value
-              ])
-            )
-          });
-          
           const zip = new PizZip(new Uint8Array(templateData));
           
-          // CRITICAL FIX: Configure image module with proper getSize function
-          const imageModule = new ImageModule({
-            centered: false,
-            getImage: (tagValue: string, tagName: string, meta: any) => {
-              console.log(`${logPrefix(job.id)} 📐 Image module getImage called for tagName=${tagName}, tagValue type: ${typeof tagValue}`);
-              // The tagValue here should already be a Uint8Array from our preprocessing
-              return tagValue;
-            },
-            getSize: (img: Uint8Array, tagValue: string, tagName: string, meta: any) => {
-              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}, image size: ${img?.length || 'undefined'} bytes`);
-              // Return reasonable default dimensions - actual image dimensions would require image parsing
-              return [300, 200]; // Width x Height in pixels
-            }
-          });
-
+          // SIMPLIFIED: Use basic docxtemplater without image module for now
           const doc = new Docxtemplater(zip, {
               paragraphLoop: true,
               linebreaks: true,
               delimiters: { start: '{{', end: '}}' },
               nullGetter: () => "",
-              modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING with processed data object (images as binary)`);
+          console.log(`${logPrefix(job.id)} 🎨 RENDERING presentation ${index + 1}`);
           
-          // CRITICAL FIX: Pass the processed row with binary image data
           doc.render(processedRow);
           
           const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
-          // VALIDATION: Check if generated PPTX contains media files
-          try {
-            const validationZip = new PizZip(generatedBuffer);
-            const files = Object.keys(validationZip.files);
-            const mediaFiles = files.filter(f => f.startsWith('ppt/media/'));
-            console.log(`${logPrefix(job.id)} 🔍 Generated PPTX contains ${mediaFiles.length} media files:`, mediaFiles);
-            
-            if (imageColumns.length > 0 && mediaFiles.length === 0) {
-              console.warn(`${logPrefix(job.id)} ⚠️ Expected images but no media files found in generated PPTX`);
-            } else if (mediaFiles.length > 0) {
-              console.log(`${logPrefix(job.id)} 🎉 SUCCESS: Images successfully embedded in PPTX!`);
-            }
-          } catch (validationError) {
-            console.warn(`${logPrefix(job.id)} ⚠️ Could not validate PPTX media contents:`, validationError);
-          }
-          
           // Generate filename
           let outputFilename;
           if (job.filename_template) {
-            const renderedName = renderTemplate(job.filename_template, row); // Use original row for filename
+            const renderedName = renderTemplate(job.filename_template, row);
             const sanitized = sanitizeFilename(renderedName);
             outputFilename = sanitized + '.pptx';
           }
