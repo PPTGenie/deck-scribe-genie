@@ -23,7 +23,7 @@ interface ZipJobCreationParams {
     navigate: NavigateFunction;
 }
 
-// FIXED: Add filename normalization helper to match frontend logic
+// Add filename normalization helper to match frontend logic
 const normalizeFilename = (filename: string): string => {
   return filename.toLowerCase().replace(/\.jpeg$/i, '.jpg');
 };
@@ -135,7 +135,7 @@ export async function createZipJob({
 
     console.log('✅ CSV record created with ID:', csvData.id);
 
-    // 5. FIXED: Upload Images using STANDARDIZED path with filename normalization
+    // 5. CRITICAL FIX: Upload Images using STANDARDIZED path with filename normalization
     const imageCount = Object.keys(extractedFiles.images).length;
     let uploadedImages = 0;
     
