@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -13,7 +14,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// FIXED: Add filename normalization helper to match frontend logic
+// Add filename normalization helper to match frontend logic
 const normalizeFilename = (filename: string): string => {
   return filename.toLowerCase().replace(/\.jpeg$/i, '.jpg');
 };
@@ -68,14 +69,14 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// FIXED: Image storage path resolver with CONSISTENT filename normalization
+// CRITICAL FIX: Image storage path resolver with CONSISTENT filename normalization using SERVICE ROLE
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string, meta: any) => {
     const jobId = 'current';
     console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for ${tagName}=${tagValue}`);
     
     try {
-      // CRITICAL FIX: Apply same normalization as upload process
+      // Apply same normalization as upload process
       const normalizedTagValue = normalizeFilename(tagValue);
       const standardizedPath = `${userId}/${templateId}/${normalizedTagValue}`;
       
@@ -132,6 +133,7 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // CRITICAL FIX: Use service role key for admin operations
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { X, Upload, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { normalizeFilename } from '@/utils/filenameNormalization';
 
 interface ImageFile {
   file: File;
@@ -38,10 +39,6 @@ export function ImageUploadStep({
   error,
   setError,
 }: ImageUploadStepProps) {
-  
-  const normalizeFilename = (filename: string): string => {
-    return filename.toLowerCase().replace(/\.(jpeg)$/i, '.jpg');
-  };
 
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
     setError(null);

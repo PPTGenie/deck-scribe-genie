@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { CsvPreview } from '@/types/files';
 import type { NavigateFunction } from 'react-router-dom';
 import { withRetry } from '@/lib/retry';
+import { normalizeFilename } from '@/utils/filenameNormalization';
 
 type SetJobProgress = (progress: { value: number; message: string } | null) => void;
 
@@ -22,11 +23,6 @@ interface ZipJobCreationParams {
     setJobProgress: SetJobProgress;
     navigate: NavigateFunction;
 }
-
-// Add filename normalization helper to match frontend logic
-const normalizeFilename = (filename: string): string => {
-  return filename.toLowerCase().replace(/\.jpeg$/i, '.jpg');
-};
 
 export async function createZipJob({
     extractedFiles,
@@ -147,7 +143,7 @@ export async function createZipJob({
             message: `Uploading image ${uploadedImages + 1}/${imageCount}: ${filename}` 
         });
 
-        // CRITICAL FIX: Apply consistent filename normalization
+        // CRITICAL FIX: Apply consistent filename normalization using shared utility
         const normalizedFilename = normalizeFilename(filename);
         const imagePath = `${user.id}/${templateData.id}/${normalizedFilename}`;
         

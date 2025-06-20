@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import type { TemplateVariables, CsvPreview } from '@/types/files';
+import { normalizeFilename } from '@/utils/filenameNormalization';
 
 interface UploadedImage {
   file: File;
@@ -36,7 +37,7 @@ export function useNewBatchWithImagesState() {
       )]
     : [];
 
-  // FIXED: Set default filename template when CSV preview is available
+  // Set default filename template when CSV preview is available
   useEffect(() => {
     if (csvPreview?.headers.length && !filenameTemplate) {
       const firstHeader = csvPreview.headers[0];
@@ -52,17 +53,19 @@ export function useNewBatchWithImagesState() {
     if (typeof images === 'function') {
       setUploadedImages(prevImages => {
         const newImages = images(prevImages);
-        // Ensure all images have preview URLs
+        // Ensure all images have preview URLs and normalized filenames
         return newImages.map(img => ({
           ...img,
-          preview: img.preview || URL.createObjectURL(img.file)
+          preview: img.preview || URL.createObjectURL(img.file),
+          normalized: normalizeFilename(img.file.name)
         }));
       });
     } else {
-      // Ensure all images have preview URLs
+      // Ensure all images have preview URLs and normalized filenames
       const imagesWithPreviews = images.map(img => ({
         ...img,
-        preview: img.preview || URL.createObjectURL(img.file)
+        preview: img.preview || URL.createObjectURL(img.file),
+        normalized: normalizeFilename(img.file.name)
       }));
       setUploadedImages(imagesWithPreviews);
     }

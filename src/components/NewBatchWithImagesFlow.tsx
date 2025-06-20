@@ -41,7 +41,7 @@ export function NewBatchWithImagesFlow() {
     shouldValidate: hasImageVariables && currentStep >= 2
   });
 
-  // Create extracted files structure for ZIP job creation
+  // CRITICAL FIX: Create extracted files structure for ZIP job creation
   const extractedFiles = React.useMemo(() => {
     if (!state.templateFile || !state.csvFile) return null;
     
@@ -57,7 +57,7 @@ export function NewBatchWithImagesFlow() {
     };
   }, [state.templateFile, state.csvFile, state.uploadedImages, state.csvPreview]);
 
-  // Use ZIP job creation hook with missing image behavior
+  // CRITICAL FIX: Use ZIP job creation hook instead of regular job creation
   const { isStartingJob, jobProgress, handleStartJob } = useZipJobCreation({
     extractedFiles,
     csvPreview: state.csvPreview,
