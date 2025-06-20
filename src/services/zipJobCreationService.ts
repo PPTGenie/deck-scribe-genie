@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { CsvPreview } from '@/types/files';
@@ -18,6 +17,7 @@ interface ZipJobCreationParams {
     user: User;
     csvPreview: CsvPreview;
     filenameTemplate: string;
+    missingImageBehavior?: string;
     setJobProgress: SetJobProgress;
     navigate: NavigateFunction;
 }
@@ -27,6 +27,7 @@ export async function createZipJob({
     user,
     csvPreview,
     filenameTemplate,
+    missingImageBehavior = 'placeholder',
     setJobProgress,
     navigate,
 }: ZipJobCreationParams) {
@@ -38,7 +39,8 @@ export async function createZipJob({
         templateName: extractedFiles.template.name,
         csvName: extractedFiles.csv.name,
         imageCount: Object.keys(extractedFiles.images).length,
-        csvRows: csvPreview.data.length
+        csvRows: csvPreview.data.length,
+        missingImageBehavior
     });
 
     // 1. Upload Template
@@ -175,7 +177,7 @@ export async function createZipJob({
                 template_id: templateData.id,
                 csv_id: csvData.id,
                 filename_template: filenameTemplate,
-                missing_image_behavior: 'fail', // Strict validation - fail if any image is missing
+                missing_image_behavior: missingImageBehavior,
             });
         if (error) throw error;
     }, {
@@ -185,7 +187,7 @@ export async function createZipJob({
         }
     });
     
-    console.log('✅ Job record created successfully');
+    console.log('✅ Job record created successfully with missing_image_behavior:', missingImageBehavior);
     
     // 7. Trigger edge function to start processing immediately
     setJobProgress({ value: 95, message: 'Triggering processing...' });

@@ -52,6 +52,7 @@ export type Database = {
           filename_template: string | null
           finished_at: string | null
           id: string
+          missing_image_behavior: string | null
           output_zip: string | null
           progress: number
           status: Database["public"]["Enums"]["job_status"]
@@ -65,6 +66,7 @@ export type Database = {
           filename_template?: string | null
           finished_at?: string | null
           id?: string
+          missing_image_behavior?: string | null
           output_zip?: string | null
           progress?: number
           status?: Database["public"]["Enums"]["job_status"]
@@ -78,6 +80,7 @@ export type Database = {
           filename_template?: string | null
           finished_at?: string | null
           id?: string
+          missing_image_behavior?: string | null
           output_zip?: string | null
           progress?: number
           status?: Database["public"]["Enums"]["job_status"]

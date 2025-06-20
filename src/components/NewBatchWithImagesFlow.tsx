@@ -57,12 +57,13 @@ export function NewBatchWithImagesFlow() {
     };
   }, [state.templateFile, state.csvFile, state.uploadedImages, state.csvPreview]);
 
-  // Use ZIP job creation hook instead of regular job creation
+  // Use ZIP job creation hook with missing image behavior
   const { isStartingJob, jobProgress, handleStartJob } = useZipJobCreation({
     extractedFiles,
     csvPreview: state.csvPreview,
     filenameTemplate: state.filenameTemplate,
     filenameError: state.filenameError,
+    missingImageBehavior: state.missingImageBehavior,
   });
 
   const isNextDisabled = () => {
@@ -77,12 +78,17 @@ export function NewBatchWithImagesFlow() {
     }
     
     if (hasImageVariables && currentStep === 2) {
-      // Image step - STRICT validation: every CSV image value must have a matching uploaded image
-      const missingImages = state.csvImageValues.filter(csvValue => {
-        const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
-        return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);
-      });
-      return missingImages.length > 0;
+      // Image step - validation based on missing image behavior
+      if (state.missingImageBehavior === 'fail') {
+        // STRICT validation: every CSV image value must have a matching uploaded image
+        const missingImages = state.csvImageValues.filter(csvValue => {
+          const normalizedCsvValue = csvValue.toLowerCase().replace(/\.jpeg$/i, '.jpg');
+          return !state.uploadedImages.some(img => img.normalized === normalizedCsvValue);
+        });
+        return missingImages.length > 0;
+      }
+      // For 'placeholder' and 'skip' behaviors, allow proceeding even with missing images
+      return false;
     }
     
     return false;
