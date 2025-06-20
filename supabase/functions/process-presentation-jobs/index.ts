@@ -4,7 +4,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
 import PizZip from 'https://esm.sh/pizzip@3.1.5';
 import Docxtemplater from 'https://esm.sh/docxtemplater@3.47.1';
-import ImageModule from 'https://esm.sh/docxtemplater-image-module@3.1.0';
 import * as fflate from 'https://esm.sh/fflate@0.8.2';
 
 const logPrefix = (jobId: string) => `[job:${jobId}]`;
@@ -21,22 +20,29 @@ const renderTemplate = (template: string, data: Record<string, string>): string 
 
 const sanitizeFilename = (filename: string): string => {
   const withoutDiacritics = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
   const withReplacements = withoutDiacritics
     .replace(/ø/g, 'o').replace(/Ø/g, 'O')
     .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
     .replace(/ß/g, 'ss')
     .replace(/ł/g, 'l').replace(/Ł/g, 'L');
+
   const invalidCharsRegex = /[<>:"/\\|?*`!^~[\]{}';=,+]|[\x00-\x1F]/g;
   const reservedNamesRegex = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+
   let sanitized = withReplacements
     .replace(invalidCharsRegex, '')
     .replace(/\s+/g, ' ')
     .trim();
+
   sanitized = sanitized.replace(/^\.+|\.+$/g, '');
+
   if (reservedNamesRegex.test(sanitized)) {
     sanitized = `_${sanitized}`;
   }
+
   sanitized = sanitized.slice(0, 200);
+
   return sanitized;
 };
 
@@ -56,90 +62,222 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// Get image dimensions from binary data
-const getImageDimensions = async (imageData: Uint8Array): Promise<[number, number]> => {
+// XML validation utility
+const validateXMLStructure = (xmlContent: string, fileName: string, jobId: string): boolean => {
   try {
-    // For PNG files, read dimensions from header
-    if (imageData.length > 24 && 
-        imageData[0] === 0x89 && imageData[1] === 0x50 && 
-        imageData[2] === 0x4E && imageData[3] === 0x47) {
-      const width = (imageData[16] << 24) | (imageData[17] << 16) | (imageData[18] << 8) | imageData[19];
-      const height = (imageData[20] << 24) | (imageData[21] << 16) | (imageData[22] << 8) | imageData[23];
-      return [width, height];
+    // Basic XML well-formedness check
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlContent, 'text/xml');
+    
+    const parserError = doc.querySelector('parsererror');
+    if (parserError) {
+      console.error(`${logPrefix(jobId)} ❌ XML Parse Error in ${fileName}:`, parserError.textContent);
+      return false;
     }
     
-    // For JPEG files, scan for SOF markers
-    if (imageData.length > 2 && imageData[0] === 0xFF && imageData[1] === 0xD8) {
-      for (let i = 2; i < imageData.length - 8; i++) {
-        if (imageData[i] === 0xFF && (imageData[i + 1] === 0xC0 || imageData[i + 1] === 0xC2)) {
-          const height = (imageData[i + 5] << 8) | imageData[i + 6];
-          const width = (imageData[i + 7] << 8) | imageData[i + 8];
-          return [width, height];
+    // Check for required PowerPoint namespaces if it's a slide
+    if (fileName.includes('slide') && fileName.endsWith('.xml')) {
+      const requiredNamespaces = [
+        'http://schemas.openxmlformats.org/presentationml/2006/main',
+        'http://schemas.openxmlformats.org/drawingml/2006/main'
+      ];
+      
+      for (const ns of requiredNamespaces) {
+        if (!xmlContent.includes(ns)) {
+          console.warn(`${logPrefix(jobId)} ⚠️ Missing namespace ${ns} in ${fileName}`);
         }
       }
     }
     
-    // Default size if can't determine
-    return [300, 300];
-  } catch (error) {
-    console.error('Error getting image dimensions:', error);
-    return [300, 300];
+    console.log(`${logPrefix(jobId)} ✅ XML validation passed for ${fileName}`);
+    return true;
+    
+  } catch (error: any) {
+    console.error(`${logPrefix(jobId)} ❌ XML validation failed for ${fileName}:`, error);
+    return false;
   }
 };
 
-// Debug function to log PPTX content
-const debugPptxContent = (jobId: string, zip: any) => {
-  console.log(`${logPrefix(jobId)} 🔍 DEBUGGING PPTX CONTENT:`);
-  const files = Object.keys(zip.files);
-  console.log(`${logPrefix(jobId)} 📁 PPTX FILES:`, files);
+// Enhanced image placeholder extraction with XML structure preservation
+const extractImagePlaceholdersWithContext = (zipContent: Uint8Array, jobId: string): Array<{
+  fileName: string; 
+  placeholders: Array<{
+    placeholder: string;
+    variableName: string;
+    parentElement: string;
+    position: { x: number; y: number; width: number; height: number };
+    tempMarker: string;
+  }>
+}> => {
+  console.log(`${logPrefix(jobId)} 🔍 EXTRACTING IMAGE PLACEHOLDERS WITH ENHANCED CONTEXT`);
   
-  // Look for slide files
-  const slideFiles = files.filter(f => f.includes('slide') && f.endsWith('.xml'));
-  console.log(`${logPrefix(jobId)} 🎯 SLIDE FILES:`, slideFiles);
-  
-  // Check first slide content for placeholders
-  if (slideFiles.length > 0) {
-    try {
-      const slideContent = zip.files[slideFiles[0]].asText();
-      const hasImagePlaceholders = slideContent.includes('{{') && slideContent.includes('_img}}');
-      console.log(`${logPrefix(jobId)} 🎯 SLIDE HAS IMAGE PLACEHOLDERS:`, hasImagePlaceholders);
-      
-      // Extract all {{...}} patterns
-      const placeholders = slideContent.match(/\{\{[^}]+\}\}/g) || [];
-      console.log(`${logPrefix(jobId)} 🎯 ALL PLACEHOLDERS FOUND:`, placeholders);
-      
-      // Extract image placeholders specifically
-      const imagePlaceholders = placeholders.filter(p => p.includes('_img'));
-      console.log(`${logPrefix(jobId)} 🖼️ IMAGE PLACEHOLDERS FOUND:`, imagePlaceholders);
-    } catch (error) {
-      console.error(`${logPrefix(jobId)} ❌ ERROR reading slide content:`, error);
+  try {
+    const zip = new PizZip(zipContent);
+    const slidesWithImagePlaceholders: Array<{
+      fileName: string; 
+      placeholders: Array<{
+        placeholder: string;
+        variableName: string;
+        parentElement: string;
+        position: { x: number; y: number; width: number; height: number };
+        tempMarker: string;
+      }>
+    }> = [];
+
+    for (const fileName of Object.keys(zip.files)) {
+      if (fileName.includes('slide') && fileName.endsWith('.xml') && !fileName.includes('_rels')) {
+        console.log(`${logPrefix(jobId)} 📄 SCANNING: ${fileName}`);
+        
+        const file = zip.files[fileName];
+        if (file && !file.dir) {
+          const content = file.asText();
+          
+          // Validate XML structure first
+          if (!validateXMLStructure(content, fileName, jobId)) {
+            console.error(`${logPrefix(jobId)} ❌ Skipping ${fileName} due to XML validation failure`);
+            continue;
+          }
+          
+          const placeholders: Array<{
+            placeholder: string;
+            variableName: string;
+            parentElement: string;
+            position: { x: number; y: number; width: number; height: number };
+            tempMarker: string;
+          }> = [];
+          
+          // Find text elements containing image placeholders within their XML context
+          const textRunRegex = /<a:t[^>]*>([^<]*\{\{[^}]+_img\}\}[^<]*)<\/a:t>/g;
+          let match;
+          
+          while ((match = textRunRegex.exec(content)) !== null) {
+            const textContent = match[1];
+            const imagePlaceholderRegex = /\{\{([^}]+_img)\}\}/g;
+            let imgMatch;
+            
+            while ((imgMatch = imagePlaceholderRegex.exec(textContent)) !== null) {
+              const placeholder = imgMatch[0]; // {{logo_img}}
+              const variableName = imgMatch[1]; // logo_img
+              
+              // Find the parent shape element that contains this text run
+              const fullMatch = match[0];
+              const matchIndex = match.index;
+              const beforeMatch = content.substring(0, matchIndex);
+              const afterMatch = content.substring(matchIndex + fullMatch.length);
+              
+              // Find the containing shape
+              const shapeStartRegex = /<p:sp[^>]*>/g;
+              const shapeEndRegex = /<\/p:sp>/g;
+              
+              let shapeStart = -1;
+              let shapeMatch;
+              while ((shapeMatch = shapeStartRegex.exec(beforeMatch)) !== null) {
+                shapeStart = shapeMatch.index;
+              }
+              
+              if (shapeStart === -1) continue;
+              
+              const shapeEnd = afterMatch.search(shapeEndRegex);
+              if (shapeEnd === -1) continue;
+              
+              const fullShapeXml = content.substring(shapeStart, matchIndex + fullMatch.length + shapeEnd + 7); // +7 for </p:sp>
+              
+              // Extract position with better defaults
+              const positionMatch = fullShapeXml.match(/<a:xfrm[^>]*>.*?<a:off[^>]*x="([^"]*)"[^>]*y="([^"]*)".*?<a:ext[^>]*cx="([^"]*)"[^>]*cy="([^"]*)".*?<\/a:xfrm>/s);
+              const position = {
+                x: positionMatch ? parseInt(positionMatch[1]) || 914400 : 914400,  // Default to 1 inch
+                y: positionMatch ? parseInt(positionMatch[2]) || 914400 : 914400,  // Default to 1 inch
+                width: positionMatch ? parseInt(positionMatch[3]) || 2743200 : 2743200,  // Default to 3 inches
+                height: positionMatch ? parseInt(positionMatch[4]) || 2057400 : 2057400   // Default to 2.25 inches
+              };
+              
+              // Create unique temporary marker
+              const tempMarker = `__TEMP_IMG_${crypto.randomUUID().replace(/-/g, '')}__`;
+              
+              placeholders.push({
+                placeholder,
+                variableName,
+                parentElement: fullShapeXml,
+                position,
+                tempMarker
+              });
+              
+              console.log(`${logPrefix(jobId)} 🎯 FOUND: ${placeholder} at position ${position.x},${position.y} size ${position.width}x${position.height}`);
+            }
+          }
+          
+          if (placeholders.length > 0) {
+            slidesWithImagePlaceholders.push({ fileName, placeholders });
+          }
+        }
+      }
     }
+
+    console.log(`${logPrefix(jobId)} 📊 ENHANCED CONTEXT EXTRACTION: Found ${slidesWithImagePlaceholders.length} slides with image placeholders`);
+    return slidesWithImagePlaceholders;
+    
+  } catch (error: any) {
+    console.error(`${logPrefix(jobId)} ❌ ENHANCED CONTEXT EXTRACTION ERROR:`, error);
+    return [];
   }
 };
 
-// Enhanced image getter with detailed logging
+// Replace image placeholders with temporary markers
+const replaceImagePlaceholdersWithMarkers = (
+  zipContent: Uint8Array, 
+  detectedPlaceholders: Array<{fileName: string; placeholders: Array<any>}>, 
+  jobId: string
+): { zip: any; markerMap: Map<string, any> } => {
+  console.log(`${logPrefix(jobId)} 🔄 REPLACING IMAGE PLACEHOLDERS WITH TEMPORARY MARKERS`);
+  
+  const zip = new PizZip(zipContent);
+  const markerMap = new Map();
+  
+  for (const slideInfo of detectedPlaceholders) {
+    const { fileName, placeholders } = slideInfo;
+    const slideFile = zip.files[fileName];
+    
+    if (!slideFile || slideFile.dir) continue;
+    
+    let slideContent = slideFile.asText();
+    
+    for (const placeholderInfo of placeholders) {
+      const { placeholder, tempMarker, variableName, position } = placeholderInfo;
+      
+      // Replace the image placeholder with temporary marker
+      slideContent = slideContent.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), tempMarker);
+      
+      // Store mapping for later replacement
+      markerMap.set(tempMarker, {
+        variableName,
+        position,
+        fileName
+      });
+      
+      console.log(`${logPrefix(jobId)} 🔄 Replaced ${placeholder} with ${tempMarker}`);
+    }
+    
+    zip.file(fileName, slideContent);
+  }
+  
+  return { zip, markerMap };
+};
+
+// Image storage path resolver
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
-  return async (tagValue: string, tagName: string, meta: any) => {
+  return async (tagValue: string, tagName: string) => {
     const jobId = 'current';
-    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED`);
-    console.log(`${logPrefix(jobId)} - tagName: "${tagName}"`);
-    console.log(`${logPrefix(jobId)} - tagValue: "${tagValue}"`);
-    console.log(`${logPrefix(jobId)} - meta:`, JSON.stringify(meta, null, 2));
+    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for ${tagName}=${tagValue}`);
     
     try {
-      // Try different path combinations
       const pathsToTry = [
         `${userId}/${templateId}/${tagValue}`,
         `${userId}/${tagValue}`,
         tagValue,
       ];
       
-      console.log(`${logPrefix(jobId)} 🔍 SEARCHING FOR IMAGE IN PATHS:`, pathsToTry);
-      
       for (const imagePath of pathsToTry) {
         try {
-          console.log(`${logPrefix(jobId)} 🔍 TRYING PATH: ${imagePath}`);
-          
           const { data, error } = await supabaseAdmin.storage
             .from('images')
             .download(imagePath);
@@ -147,12 +285,9 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
           if (!error && data) {
             const imageBuffer = new Uint8Array(await data.arrayBuffer());
             console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND: ${imagePath} (${imageBuffer.length} bytes)`);
-            return imageBuffer;
-          } else if (error) {
-            console.log(`${logPrefix(jobId)} ❌ PATH FAILED: ${imagePath} - ${error.message}`);
+            return { buffer: imageBuffer, path: imagePath };
           }
         } catch (pathError: any) {
-          console.log(`${logPrefix(jobId)} ❌ PATH ERROR: ${imagePath} - ${pathError.message}`);
           continue;
         }
       }
@@ -160,16 +295,14 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
       console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: ${tagValue}`);
       
       if (missingImageBehavior === 'placeholder') {
-        console.log(`${logPrefix(jobId)} 🔧 USING PLACEHOLDER IMAGE`);
-        return createMissingImagePlaceholder();
+        return { buffer: createMissingImagePlaceholder(), path: 'placeholder' };
       } else if (missingImageBehavior === 'skip') {
-        console.log(`${logPrefix(jobId)} ⏭️ SKIPPING MISSING IMAGE`);
         return null;
       } else if (missingImageBehavior === 'fail') {
         throw new Error(`Missing required image: ${tagValue}`);
       }
       
-      return createMissingImagePlaceholder();
+      return { buffer: createMissingImagePlaceholder(), path: 'placeholder' };
 
     } catch (error: any) {
       console.error(`${logPrefix(jobId)} 💥 ERROR in getImage:`, error);
@@ -177,12 +310,219 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
       if (missingImageBehavior === 'fail') {
         throw error;
       } else if (missingImageBehavior === 'placeholder') {
-        return createMissingImagePlaceholder();
+        return { buffer: createMissingImagePlaceholder(), path: 'placeholder' };
       }
       
       return null;
     }
   };
+};
+
+// Generate PowerPoint-compliant image XML with proper structure
+const generatePowerPointImageXML = (
+  imageId: number,
+  relationshipId: string,
+  position: { x: number; y: number; width: number; height: number }
+): string => {
+  return `<p:pic>
+    <p:nvPicPr>
+      <p:cNvPr id="${10000 + imageId}" name="Picture ${imageId}"/>
+      <p:cNvPicPr/>
+      <p:nvPr/>
+    </p:nvPicPr>
+    <p:blipFill>
+      <a:blip r:embed="${relationshipId}"/>
+      <a:stretch>
+        <a:fillRect/>
+      </a:stretch>
+    </p:blipFill>
+    <p:spPr>
+      <a:xfrm>
+        <a:off x="${position.x}" y="${position.y}"/>
+        <a:ext cx="${position.width}" cy="${position.height}"/>
+      </a:xfrm>
+      <a:prstGeom prst="rect">
+        <a:avLst/>
+      </a:prstGeom>
+    </p:spPr>
+  </p:pic>`;
+};
+
+// Enhanced image replacement with proper XML structure handling
+const replaceMarkersWithImages = async (
+  zipContent: Uint8Array,
+  markerMap: Map<string, any>,
+  data: Record<string, string>,
+  imageGetter: any,
+  jobId: string,
+  missingImageBehavior: string
+): Promise<Uint8Array> => {
+  console.log(`${logPrefix(jobId)} 🎨 REPLACING TEMPORARY MARKERS WITH POWERPOINT-COMPLIANT IMAGES`);
+  
+  if (markerMap.size === 0) {
+    console.log(`${logPrefix(jobId)} ✅ No image markers to process`);
+    return zipContent;
+  }
+  
+  try {
+    const zip = new PizZip(zipContent);
+    let modified = false;
+    const imagesToAdd: Record<string, Uint8Array> = {};
+    let imageCounter = 1;
+    const relationshipsBySlide = new Map();
+
+    // Process each marker
+    for (const [tempMarker, markerInfo] of markerMap.entries()) {
+      const { variableName, position, fileName } = markerInfo;
+      const imageValue = data[variableName];
+      
+      if (!imageValue) {
+        console.log(`${logPrefix(jobId)} ⚠️ No data for ${variableName}`);
+        continue;
+      }
+      
+      console.log(`${logPrefix(jobId)} 🖼️ PROCESSING MARKER: ${tempMarker} -> ${variableName}=${imageValue}`);
+      
+      try {
+        const imageResult = await imageGetter(imageValue, variableName);
+        
+        if (imageResult && imageResult.buffer) {
+          // Determine image format
+          const isJpeg = imageValue.toLowerCase().includes('.jpg') || imageValue.toLowerCase().includes('.jpeg');
+          const imageExt = isJpeg ? 'jpeg' : 'png';
+          const imageFileName = `image${imageCounter}.${imageExt}`;
+          const relationshipId = `rId${10000 + imageCounter}`;
+          
+          // Add image to media folder
+          imagesToAdd[`ppt/media/${imageFileName}`] = imageResult.buffer;
+          
+          // Generate PowerPoint-compliant image XML
+          const imageXml = generatePowerPointImageXML(imageCounter, relationshipId, position);
+
+          // Replace marker in slide content with proper XML structure
+          const slideFile = zip.files[fileName];
+          if (slideFile && !slideFile.dir) {
+            let slideContent = slideFile.asText();
+            
+            // Find the text run containing the marker and replace the entire text run with image
+            const textRunPattern = new RegExp(`<a:t[^>]*>[^<]*${tempMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^<]*</a:t>`, 'g');
+            
+            if (textRunPattern.test(slideContent)) {
+              // Replace the text run with a placeholder that we'll later replace with proper image structure
+              slideContent = slideContent.replace(textRunPattern, `<!--IMAGE_PLACEHOLDER_${imageCounter}-->`);
+              
+              // Now find the parent paragraph and replace it with proper image structure
+              const paragraphPattern = new RegExp(`<a:p[^>]*>.*?<!--IMAGE_PLACEHOLDER_${imageCounter}-->.*?</a:p>`, 's');
+              slideContent = slideContent.replace(paragraphPattern, imageXml);
+            } else {
+              // Fallback: direct replacement if text run pattern doesn't match
+              slideContent = slideContent.replace(tempMarker, imageXml);
+            }
+            
+            // Validate the resulting XML
+            if (validateXMLStructure(slideContent, fileName, jobId)) {
+              zip.file(fileName, slideContent);
+              modified = true;
+              console.log(`${logPrefix(jobId)} 🔧 Successfully replaced marker ${tempMarker} with PowerPoint image: ${imageFileName}`);
+            } else {
+              console.error(`${logPrefix(jobId)} ❌ XML validation failed after image replacement for ${tempMarker}`);
+              continue;
+            }
+          }
+          
+          // Track relationships for this slide
+          if (!relationshipsBySlide.has(fileName)) {
+            relationshipsBySlide.set(fileName, []);
+          }
+          relationshipsBySlide.get(fileName).push({
+            relationshipId,
+            imageFileName
+          });
+          
+          imageCounter++;
+        }
+      } catch (error: any) {
+        console.error(`${logPrefix(jobId)} ❌ Error processing ${variableName}:`, error);
+        if (missingImageBehavior === 'fail') throw error;
+      }
+    }
+
+    // Add relationships for each slide with proper XML structure
+    for (const [slideFileName, relationships] of relationshipsBySlide.entries()) {
+      const relsFileName = slideFileName.replace(/slides\/slide(\d+)\.xml/, 'slides/_rels/slide$1.xml.rels');
+      
+      if (zip.files[relsFileName]) {
+        let relsContent = zip.files[relsFileName].asText();
+        
+        // Validate existing relationships XML
+        if (!validateXMLStructure(relsContent, relsFileName, jobId)) {
+          console.error(`${logPrefix(jobId)} ❌ Invalid relationships XML: ${relsFileName}`);
+          continue;
+        }
+        
+        for (const { relationshipId, imageFileName } of relationships) {
+          const imageRelXml = `  <Relationship Id="${relationshipId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${imageFileName}"/>`;
+          relsContent = relsContent.replace('</Relationships>', `${imageRelXml}\n</Relationships>`);
+        }
+        
+        // Validate the modified relationships XML
+        if (validateXMLStructure(relsContent, relsFileName, jobId)) {
+          zip.file(relsFileName, relsContent);
+          console.log(`${logPrefix(jobId)} 🔗 Added ${relationships.length} relationships to ${relsFileName}`);
+        } else {
+          console.error(`${logPrefix(jobId)} ❌ Failed to validate modified relationships XML: ${relsFileName}`);
+        }
+      }
+    }
+
+    // Add images to media folder
+    for (const [mediaPath, imageBuffer] of Object.entries(imagesToAdd)) {
+      zip.file(mediaPath, imageBuffer);
+      console.log(`${logPrefix(jobId)} 📁 Added to media: ${mediaPath}`);
+    }
+
+    // Update Content Types with proper XML handling
+    if (modified && zip.files['[Content_Types].xml']) {
+      let contentTypes = zip.files['[Content_Types].xml'].asText();
+      
+      // Validate existing content types
+      if (validateXMLStructure(contentTypes, '[Content_Types].xml', jobId)) {
+        if (!contentTypes.includes('image/png')) {
+          const pngType = '  <Default Extension="png" ContentType="image/png"/>';
+          contentTypes = contentTypes.replace('</Types>', `${pngType}\n</Types>`);
+        }
+        
+        if (!contentTypes.includes('image/jpeg')) {
+          const jpegType = '  <Default Extension="jpeg" ContentType="image/jpeg"/>';
+          contentTypes = contentTypes.replace('</Types>', `${jpegType}\n</Types>`);
+        }
+        
+        // Validate the modified content types
+        if (validateXMLStructure(contentTypes, '[Content_Types].xml', jobId)) {
+          zip.file('[Content_Types].xml', contentTypes);
+          console.log(`${logPrefix(jobId)} 📋 Updated content types with validation`);
+        } else {
+          console.error(`${logPrefix(jobId)} ❌ Failed to validate modified content types`);
+        }
+      } else {
+        console.error(`${logPrefix(jobId)} ❌ Invalid content types XML structure`);
+      }
+    }
+
+    if (modified) {
+      const generatedZip = zip.generate({ type: 'uint8array' });
+      console.log(`${logPrefix(jobId)} ✅ POWERPOINT-COMPLIANT IMAGE REPLACEMENT COMPLETE: Generated presentation with ${imageCounter - 1} images`);
+      return generatedZip;
+    } else {
+      console.log(`${logPrefix(jobId)} ✅ No modifications needed`);
+      return zipContent;
+    }
+    
+  } catch (error: any) {
+    console.error(`${logPrefix(jobId)} ❌ POWERPOINT-COMPLIANT IMAGE REPLACEMENT ERROR:`, error);
+    console.log(`${logPrefix(jobId)} 🔄 Falling back to original content due to XML validation failure`);
+    return zipContent;
+  }
 };
 
 serve(async (req) => {
@@ -197,7 +537,6 @@ serve(async (req) => {
   );
 
   // --- 1. Atomically Claim a Job ---
-  console.log('🔍 LOOKING FOR QUEUED JOBS...');
   const { data: job, error: claimError } = await supabaseAdmin
     .from('jobs')
     .update({ status: 'processing' })
@@ -213,9 +552,7 @@ serve(async (req) => {
 
   if (claimError || !job) {
     if (claimError && claimError.code !== 'PGRST116') {
-      console.error('❌ ERROR claiming job:', claimError);
-    } else {
-      console.log('ℹ️ NO QUEUED JOBS FOUND');
+      console.error('Error claiming job:', claimError);
     }
     return new Response(JSON.stringify({ message: 'No queued jobs found.' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -224,24 +561,12 @@ serve(async (req) => {
   }
 
   console.log(`${logPrefix(job.id)} 🎯 CLAIMED JOB SUCCESSFULLY`);
-  console.log(`${logPrefix(job.id)} 📋 JOB DETAILS:`, {
-    jobId: job.id,
-    userId: job.templates.user_id,
-    templateId: job.template_id,
-    csvRows: job.csv_uploads.rows_count,
-    filenameTemplate: job.filename_template,
-    missingImageBehavior: job.missing_image_behavior || 'placeholder'
-  });
   
   const storageClient = supabaseAdmin;
 
   try {
     // --- 2. Download Template and CSV Files ---
     await updateProgress(supabaseAdmin, job.id, 1, 'Downloading template file...');
-    
-    console.log(`${logPrefix(job.id)} 📥 DOWNLOADING FILES...`);
-    console.log(`${logPrefix(job.id)} - Template path: ${job.templates.storage_path}`);
-    console.log(`${logPrefix(job.id)} - CSV path: ${job.csv_uploads.storage_path}`);
     
     const [templateFile, csvFile] = await Promise.all([
       storageClient.storage.from('templates').download(job.templates.storage_path),
@@ -251,15 +576,10 @@ serve(async (req) => {
     if (templateFile.error) throw new Error(`Failed to download template: ${templateFile.error.message}`);
     if (csvFile.error) throw new Error(`Failed to download CSV: ${csvFile.error.message}`);
 
-    console.log(`${logPrefix(job.id)} ✅ FILES DOWNLOADED SUCCESSFULLY`);
-
     await updateProgress(supabaseAdmin, job.id, 3, 'Files downloaded, parsing CSV...');
 
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
-    
-    console.log(`${logPrefix(job.id)} 📊 TEMPLATE SIZE: ${templateData.byteLength} bytes`);
-    console.log(`${logPrefix(job.id)} 📊 CSV SIZE: ${csvData.length} characters`);
     
     const allRows = parse(csvData, { skipFirstRow: false }) as string[][];
 
@@ -269,9 +589,6 @@ serve(async (req) => {
 
     const headers = allRows[0];
     const dataRows = allRows.slice(1);
-
-    console.log(`${logPrefix(job.id)} 📋 CSV HEADERS:`, headers);
-    console.log(`${logPrefix(job.id)} 📊 DATA ROWS COUNT: ${dataRows.length}`);
 
     const parsedCsv: Record<string, string>[] = dataRows.map((row, rowIndex) => {
       if (row.length !== headers.length) {
@@ -287,17 +604,11 @@ serve(async (req) => {
     const totalRows = parsedCsv.length;
     console.log(`${logPrefix(job.id)} ✅ Successfully parsed ${totalRows} data rows`);
 
-    // Debug first row data
-    if (parsedCsv.length > 0) {
-      console.log(`${logPrefix(job.id)} 🔍 FIRST ROW DATA:`, JSON.stringify(parsedCsv[0], null, 2));
-    }
-
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Debug PPTX Template Structure ---
-    console.log(`${logPrefix(job.id)} 🔍 ANALYZING TEMPLATE STRUCTURE...`);
-    const zip = new PizZip(new Uint8Array(templateData));
-    debugPptxContent(job.id, zip);
+    // --- 3. Extract Image Placeholders with Enhanced Context ---
+    console.log(`${logPrefix(job.id)} 🔍 STEP 1: EXTRACTING IMAGE PLACEHOLDERS WITH ENHANCED CONTEXT`);
+    const detectedImagePlaceholders = extractImagePlaceholdersWithContext(new Uint8Array(templateData), job.id);
 
     // --- 4. Setup Image Configuration ---
     const missingImageBehavior = job.missing_image_behavior || 'placeholder';
@@ -310,37 +621,13 @@ serve(async (req) => {
       missingImageBehavior
     );
 
-    // --- 5. Test Image Module Configuration ---
-    console.log(`${logPrefix(job.id)} 🧪 TESTING IMAGE MODULE CONFIGURATION...`);
-    
-    try {
-      const testImageModule = new ImageModule({
-        centered: false,
-        getImage: imageGetter,
-        getSize: async (img: Uint8Array, tagValue: string, tagName: string) => {
-          console.log(`${logPrefix(job.id)} 📏 GET SIZE CALLED for ${tagName}=${tagValue}`);
-          const dimensions = await getImageDimensions(img);
-          console.log(`${logPrefix(job.id)} 📏 IMAGE DIMENSIONS: ${dimensions[0]}x${dimensions[1]}`);
-          return dimensions;
-        }
-      });
-      console.log(`${logPrefix(job.id)} ✅ IMAGE MODULE CREATED SUCCESSFULLY`);
-    } catch (moduleError: any) {
-      console.error(`${logPrefix(job.id)} ❌ IMAGE MODULE CREATION FAILED:`, moduleError);
-      throw new Error(`Image module initialization failed: ${moduleError.message}`);
-    }
-
-    // --- 6. Process Each Row and Generate Presentations ---
+    // --- 5. Process Each Row and Generate Presentations ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
     const processingErrors: string[] = [];
     let successfulPresentations = 0;
 
-    // Test with just the first row initially
-    const testRows = parsedCsv.slice(0, 1);
-    console.log(`${logPrefix(job.id)} 🧪 TESTING WITH FIRST ROW ONLY`);
-
-    for (const [index, row] of testRows.entries()) {
+    for (const [index, row] of parsedCsv.entries()) {
         const baseProgress = 5;
         const processingProgress = 80;
         const currentProgress = baseProgress + Math.round((index / totalRows) * processingProgress);
@@ -348,49 +635,46 @@ serve(async (req) => {
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
         try {
-          console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
-          console.log(`${logPrefix(job.id)} 📊 ROW DATA:`, JSON.stringify(row, null, 2));
+          console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows} with XML validation`);
           
-          // Create fresh ZIP for each iteration
-          const freshZip = new PizZip(new Uint8Array(templateData));
+          // STEP 1: Replace image placeholders with temporary markers BEFORE docxtemplater
+          console.log(`${logPrefix(job.id)} 🔄 STEP 2: REPLACING IMAGE PLACEHOLDERS WITH MARKERS`);
+          const { zip: zipWithMarkers, markerMap } = replaceImagePlaceholdersWithMarkers(
+            new Uint8Array(templateData), 
+            detectedImagePlaceholders, 
+            job.id
+          );
           
-          // Create image module with proper configuration
-          const imageModule = new ImageModule({
-            centered: false,
-            getImage: imageGetter,
-            getSize: async (img: Uint8Array, tagValue: string, tagName: string) => {
-              console.log(`${logPrefix(job.id)} 📏 GET SIZE CALLED for ${tagName}=${tagValue}`);
-              const dimensions = await getImageDimensions(img);
-              console.log(`${logPrefix(job.id)} 📏 IMAGE DIMENSIONS: ${dimensions[0]}x${dimensions[1]}`);
-              return dimensions;
+          // STEP 2: Process text-only with docxtemplater (no image module!)
+          console.log(`${logPrefix(job.id)} 🎨 STEP 3: PROCESSING TEXT WITH DOCXTEMPLATER`);
+          const textOnlyData: Record<string, string> = {};
+          for (const [key, value] of Object.entries(row)) {
+            if (!key.endsWith('_img')) {
+              textOnlyData[key] = value;
             }
-          });
-
-          console.log(`${logPrefix(job.id)} 🔧 CREATING DOCXTEMPLATER WITH IMAGE MODULE`);
+          }
           
-          const doc = new Docxtemplater(freshZip, {
+          const doc = new Docxtemplater(zipWithMarkers, {
               paragraphLoop: true,
               linebreaks: true,
               delimiters: { start: '{{', end: '}}' },
               nullGetter: () => "",
-              modules: [imageModule]
+              // NO IMAGE MODULES - text processing only
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING TEMPLATE WITH DATA`);
-          console.log(`${logPrefix(job.id)} 🎨 DATA BEING PASSED:`, Object.keys(row));
+          doc.render(textOnlyData);
+          let generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
-          // Debug: Check what variables the template expects
-          try {
-            const templateTags = doc.getFullText();
-            console.log(`${logPrefix(job.id)} 🎯 TEMPLATE FULL TEXT LENGTH:`, templateTags.length);
-          } catch (error) {
-            console.warn(`${logPrefix(job.id)} ⚠️ Could not get template text:`, error);
-          }
-          
-          doc.render(row);
-          
-          console.log(`${logPrefix(job.id)} 📦 GENERATING OUTPUT BUFFER`);
-          const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
+          // STEP 3: Replace temporary markers with PowerPoint-compliant image XML
+          console.log(`${logPrefix(job.id)} 🎨 STEP 4: REPLACING MARKERS WITH POWERPOINT-COMPLIANT IMAGES`);
+          generatedBuffer = await replaceMarkersWithImages(
+            generatedBuffer,
+            markerMap,
+            row, // Full data including image variables
+            imageGetter,
+            job.id,
+            missingImageBehavior
+          );
           
           // Generate filename
           let outputFilename;
@@ -427,15 +711,10 @@ serve(async (req) => {
           
           outputPaths.push(outputPath);
           successfulPresentations++;
-          console.log(`${logPrefix(job.id)} ✅ SUCCESSFULLY PROCESSED presentation ${index + 1}/${totalRows}`);
-          
-          // For testing, break after first successful processing
-          console.log(`${logPrefix(job.id)} 🧪 TEST COMPLETE - Breaking after first successful presentation`);
-          break;
+          console.log(`${logPrefix(job.id)} ✅ SUCCESSFULLY PROCESSED XML-validated presentation ${index + 1}/${totalRows}`);
           
         } catch (error: any) {
           console.error(`${logPrefix(job.id)} ❌ ERROR processing row ${index + 1}:`, error);
-          console.error(`${logPrefix(job.id)} ❌ ERROR STACK:`, error.stack);
           processingErrors.push(`Row ${index + 1}: ${error.message}`);
           
           if (missingImageBehavior === 'fail') {
@@ -449,9 +728,9 @@ serve(async (req) => {
       throw new Error('No presentations were successfully generated. All rows failed processing.');
     }
 
-    console.log(`${logPrefix(job.id)} 📊 PROCESSING SUMMARY: ${successfulPresentations}/${testRows.length} presentations successful`);
+    console.log(`${logPrefix(job.id)} 📊 PROCESSING SUMMARY: ${successfulPresentations}/${totalRows} presentations successful with XML validation`);
 
-    // --- 7. Create and Upload ZIP Archive ---
+    // --- 6. Create and Upload ZIP Archive ---
     await updateProgress(supabaseAdmin, job.id, 85, `Creating ZIP with ${outputPaths.length} presentations...`);
     
     const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
@@ -486,11 +765,11 @@ serve(async (req) => {
 
     if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
 
-    // --- 8. Finalize Job ---
+    // --- 7. Finalize Job ---
     await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
     
     const finalErrorMessage = processingErrors.length > 0 
-      ? `Test completed with ${processingErrors.length} processing warnings` 
+      ? `Completed with ${processingErrors.length} processing warnings` 
       : null;
     
     await supabaseAdmin
@@ -504,10 +783,10 @@ serve(async (req) => {
       })
       .eq('id', job.id);
 
-    console.log(`${logPrefix(job.id)} 🎉 JOB COMPLETED SUCCESSFULLY: ${successfulPresentations}/${testRows.length} presentations (TEST MODE)`);
+    console.log(`${logPrefix(job.id)} 🎉 JOB COMPLETED SUCCESSFULLY with XML validation: ${successfulPresentations}/${totalRows} presentations`);
 
     return new Response(JSON.stringify({ 
-      message: `Job ${job.id} completed (TEST): ${successfulPresentations}/${testRows.length} presentations.`,
+      message: `Job ${job.id} completed with XML validation: ${successfulPresentations}/${totalRows} presentations.`,
       processingErrors: processingErrors.length > 0 ? processingErrors : undefined 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -516,7 +795,6 @@ serve(async (req) => {
 
   } catch (error) {
     console.error(`${logPrefix(job.id)} 💥 CRITICAL ERROR occurred:`, error);
-    console.error(`${logPrefix(job.id)} 💥 ERROR STACK:`, error.stack);
     await supabaseAdmin
       .from('jobs')
       .update({
