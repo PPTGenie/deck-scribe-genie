@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.212.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { parse } from 'https://deno.land/std@0.212.0/csv/mod.ts';
@@ -289,16 +288,12 @@ serve(async (req) => {
           const imageModule = new ImageModule({
             centered: false,
             getImage: (tagValue: string, tagName: string, meta: any) => {
-              // At this point, tagValue should already be binary data
               console.log(`${logPrefix(job.id)} 📐 Image module getImage called for tagName=${tagName}, tagValue type: ${typeof tagValue}`);
-              if (tagValue instanceof Uint8Array) {
-                return tagValue;
-              }
-              console.warn(`${logPrefix(job.id)} ⚠️ Expected binary data but got ${typeof tagValue} for ${tagName}`);
+              // The tagValue here should already be a Uint8Array from our preprocessing
               return tagValue;
             },
             getSize: (img: Uint8Array, tagValue: string, tagName: string, meta: any) => {
-              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}, image size: ${img.length} bytes`);
+              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}, image size: ${img?.length || 'undefined'} bytes`);
               // Return reasonable default dimensions - actual image dimensions would require image parsing
               return [300, 200]; // Width x Height in pixels
             }
