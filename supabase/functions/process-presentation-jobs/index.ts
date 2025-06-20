@@ -87,6 +87,36 @@ const getImageDimensions = async (imageData: Uint8Array): Promise<[number, numbe
   }
 };
 
+// Debug function to log PPTX content
+const debugPptxContent = (jobId: string, zip: any) => {
+  console.log(`${logPrefix(jobId)} 🔍 DEBUGGING PPTX CONTENT:`);
+  const files = Object.keys(zip.files);
+  console.log(`${logPrefix(jobId)} 📁 PPTX FILES:`, files);
+  
+  // Look for slide files
+  const slideFiles = files.filter(f => f.includes('slide') && f.endsWith('.xml'));
+  console.log(`${logPrefix(jobId)} 🎯 SLIDE FILES:`, slideFiles);
+  
+  // Check first slide content for placeholders
+  if (slideFiles.length > 0) {
+    try {
+      const slideContent = zip.files[slideFiles[0]].asText();
+      const hasImagePlaceholders = slideContent.includes('{{') && slideContent.includes('_img}}');
+      console.log(`${logPrefix(jobId)} 🎯 SLIDE HAS IMAGE PLACEHOLDERS:`, hasImagePlaceholders);
+      
+      // Extract all {{...}} patterns
+      const placeholders = slideContent.match(/\{\{[^}]+\}\}/g) || [];
+      console.log(`${logPrefix(jobId)} 🎯 ALL PLACEHOLDERS FOUND:`, placeholders);
+      
+      // Extract image placeholders specifically
+      const imagePlaceholders = placeholders.filter(p => p.includes('_img'));
+      console.log(`${logPrefix(jobId)} 🖼️ IMAGE PLACEHOLDERS FOUND:`, imagePlaceholders);
+    } catch (error) {
+      console.error(`${logPrefix(jobId)} ❌ ERROR reading slide content:`, error);
+    }
+  }
+};
+
 // Enhanced image getter with detailed logging
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string, meta: any) => {
@@ -167,6 +197,7 @@ serve(async (req) => {
   );
 
   // --- 1. Atomically Claim a Job ---
+  console.log('🔍 LOOKING FOR QUEUED JOBS...');
   const { data: job, error: claimError } = await supabaseAdmin
     .from('jobs')
     .update({ status: 'processing' })
@@ -182,7 +213,9 @@ serve(async (req) => {
 
   if (claimError || !job) {
     if (claimError && claimError.code !== 'PGRST116') {
-      console.error('Error claiming job:', claimError);
+      console.error('❌ ERROR claiming job:', claimError);
+    } else {
+      console.log('ℹ️ NO QUEUED JOBS FOUND');
     }
     return new Response(JSON.stringify({ message: 'No queued jobs found.' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -191,12 +224,24 @@ serve(async (req) => {
   }
 
   console.log(`${logPrefix(job.id)} 🎯 CLAIMED JOB SUCCESSFULLY`);
+  console.log(`${logPrefix(job.id)} 📋 JOB DETAILS:`, {
+    jobId: job.id,
+    userId: job.templates.user_id,
+    templateId: job.template_id,
+    csvRows: job.csv_uploads.rows_count,
+    filenameTemplate: job.filename_template,
+    missingImageBehavior: job.missing_image_behavior || 'placeholder'
+  });
   
   const storageClient = supabaseAdmin;
 
   try {
     // --- 2. Download Template and CSV Files ---
     await updateProgress(supabaseAdmin, job.id, 1, 'Downloading template file...');
+    
+    console.log(`${logPrefix(job.id)} 📥 DOWNLOADING FILES...`);
+    console.log(`${logPrefix(job.id)} - Template path: ${job.templates.storage_path}`);
+    console.log(`${logPrefix(job.id)} - CSV path: ${job.csv_uploads.storage_path}`);
     
     const [templateFile, csvFile] = await Promise.all([
       storageClient.storage.from('templates').download(job.templates.storage_path),
@@ -206,10 +251,15 @@ serve(async (req) => {
     if (templateFile.error) throw new Error(`Failed to download template: ${templateFile.error.message}`);
     if (csvFile.error) throw new Error(`Failed to download CSV: ${csvFile.error.message}`);
 
+    console.log(`${logPrefix(job.id)} ✅ FILES DOWNLOADED SUCCESSFULLY`);
+
     await updateProgress(supabaseAdmin, job.id, 3, 'Files downloaded, parsing CSV...');
 
     const templateData = await templateFile.data.arrayBuffer();
     const csvData = await csvFile.data.text();
+    
+    console.log(`${logPrefix(job.id)} 📊 TEMPLATE SIZE: ${templateData.byteLength} bytes`);
+    console.log(`${logPrefix(job.id)} 📊 CSV SIZE: ${csvData.length} characters`);
     
     const allRows = parse(csvData, { skipFirstRow: false }) as string[][];
 
@@ -219,6 +269,9 @@ serve(async (req) => {
 
     const headers = allRows[0];
     const dataRows = allRows.slice(1);
+
+    console.log(`${logPrefix(job.id)} 📋 CSV HEADERS:`, headers);
+    console.log(`${logPrefix(job.id)} 📊 DATA ROWS COUNT: ${dataRows.length}`);
 
     const parsedCsv: Record<string, string>[] = dataRows.map((row, rowIndex) => {
       if (row.length !== headers.length) {
@@ -234,9 +287,19 @@ serve(async (req) => {
     const totalRows = parsedCsv.length;
     console.log(`${logPrefix(job.id)} ✅ Successfully parsed ${totalRows} data rows`);
 
+    // Debug first row data
+    if (parsedCsv.length > 0) {
+      console.log(`${logPrefix(job.id)} 🔍 FIRST ROW DATA:`, JSON.stringify(parsedCsv[0], null, 2));
+    }
+
     await updateProgress(supabaseAdmin, job.id, 5, `CSV parsed, processing ${totalRows} presentations...`);
 
-    // --- 3. Setup Image Configuration ---
+    // --- 3. Debug PPTX Template Structure ---
+    console.log(`${logPrefix(job.id)} 🔍 ANALYZING TEMPLATE STRUCTURE...`);
+    const zip = new PizZip(new Uint8Array(templateData));
+    debugPptxContent(job.id, zip);
+
+    // --- 4. Setup Image Configuration ---
     const missingImageBehavior = job.missing_image_behavior || 'placeholder';
     console.log(`${logPrefix(job.id)} 🎯 IMAGE BEHAVIOR: ${missingImageBehavior}`);
     
@@ -247,13 +310,37 @@ serve(async (req) => {
       missingImageBehavior
     );
 
-    // --- 4. Process Each Row and Generate Presentations ---
+    // --- 5. Test Image Module Configuration ---
+    console.log(`${logPrefix(job.id)} 🧪 TESTING IMAGE MODULE CONFIGURATION...`);
+    
+    try {
+      const testImageModule = new ImageModule({
+        centered: false,
+        getImage: imageGetter,
+        getSize: async (img: Uint8Array, tagValue: string, tagName: string) => {
+          console.log(`${logPrefix(job.id)} 📏 GET SIZE CALLED for ${tagName}=${tagValue}`);
+          const dimensions = await getImageDimensions(img);
+          console.log(`${logPrefix(job.id)} 📏 IMAGE DIMENSIONS: ${dimensions[0]}x${dimensions[1]}`);
+          return dimensions;
+        }
+      });
+      console.log(`${logPrefix(job.id)} ✅ IMAGE MODULE CREATED SUCCESSFULLY`);
+    } catch (moduleError: any) {
+      console.error(`${logPrefix(job.id)} ❌ IMAGE MODULE CREATION FAILED:`, moduleError);
+      throw new Error(`Image module initialization failed: ${moduleError.message}`);
+    }
+
+    // --- 6. Process Each Row and Generate Presentations ---
     const outputPaths: string[] = [];
     const usedFilenames = new Set<string>();
     const processingErrors: string[] = [];
     let successfulPresentations = 0;
 
-    for (const [index, row] of parsedCsv.entries()) {
+    // Test with just the first row initially
+    const testRows = parsedCsv.slice(0, 1);
+    console.log(`${logPrefix(job.id)} 🧪 TESTING WITH FIRST ROW ONLY`);
+
+    for (const [index, row] of testRows.entries()) {
         const baseProgress = 5;
         const processingProgress = 80;
         const currentProgress = baseProgress + Math.round((index / totalRows) * processingProgress);
@@ -264,7 +351,8 @@ serve(async (req) => {
           console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
           console.log(`${logPrefix(job.id)} 📊 ROW DATA:`, JSON.stringify(row, null, 2));
           
-          const zip = new PizZip(new Uint8Array(templateData));
+          // Create fresh ZIP for each iteration
+          const freshZip = new PizZip(new Uint8Array(templateData));
           
           // Create image module with proper configuration
           const imageModule = new ImageModule({
@@ -280,7 +368,7 @@ serve(async (req) => {
 
           console.log(`${logPrefix(job.id)} 🔧 CREATING DOCXTEMPLATER WITH IMAGE MODULE`);
           
-          const doc = new Docxtemplater(zip, {
+          const doc = new Docxtemplater(freshZip, {
               paragraphLoop: true,
               linebreaks: true,
               delimiters: { start: '{{', end: '}}' },
@@ -289,6 +377,16 @@ serve(async (req) => {
           });
 
           console.log(`${logPrefix(job.id)} 🎨 RENDERING TEMPLATE WITH DATA`);
+          console.log(`${logPrefix(job.id)} 🎨 DATA BEING PASSED:`, Object.keys(row));
+          
+          // Debug: Check what variables the template expects
+          try {
+            const templateTags = doc.getFullText();
+            console.log(`${logPrefix(job.id)} 🎯 TEMPLATE FULL TEXT LENGTH:`, templateTags.length);
+          } catch (error) {
+            console.warn(`${logPrefix(job.id)} ⚠️ Could not get template text:`, error);
+          }
+          
           doc.render(row);
           
           console.log(`${logPrefix(job.id)} 📦 GENERATING OUTPUT BUFFER`);
@@ -331,8 +429,13 @@ serve(async (req) => {
           successfulPresentations++;
           console.log(`${logPrefix(job.id)} ✅ SUCCESSFULLY PROCESSED presentation ${index + 1}/${totalRows}`);
           
+          // For testing, break after first successful processing
+          console.log(`${logPrefix(job.id)} 🧪 TEST COMPLETE - Breaking after first successful presentation`);
+          break;
+          
         } catch (error: any) {
           console.error(`${logPrefix(job.id)} ❌ ERROR processing row ${index + 1}:`, error);
+          console.error(`${logPrefix(job.id)} ❌ ERROR STACK:`, error.stack);
           processingErrors.push(`Row ${index + 1}: ${error.message}`);
           
           if (missingImageBehavior === 'fail') {
@@ -346,9 +449,9 @@ serve(async (req) => {
       throw new Error('No presentations were successfully generated. All rows failed processing.');
     }
 
-    console.log(`${logPrefix(job.id)} 📊 PROCESSING SUMMARY: ${successfulPresentations}/${totalRows} presentations successful`);
+    console.log(`${logPrefix(job.id)} 📊 PROCESSING SUMMARY: ${successfulPresentations}/${testRows.length} presentations successful`);
 
-    // --- 5. Create and Upload ZIP Archive ---
+    // --- 7. Create and Upload ZIP Archive ---
     await updateProgress(supabaseAdmin, job.id, 85, `Creating ZIP with ${outputPaths.length} presentations...`);
     
     const zipPath = `${job.user_id}/${job.id}/presentations.zip`;
@@ -383,11 +486,11 @@ serve(async (req) => {
 
     if (zipUploadResponse.error) throw new Error(`Failed to upload ZIP file: ${zipUploadResponse.error.message}`);
 
-    // --- 6. Finalize Job ---
+    // --- 8. Finalize Job ---
     await updateProgress(supabaseAdmin, job.id, 97, 'Finalizing job...');
     
     const finalErrorMessage = processingErrors.length > 0 
-      ? `Completed with ${processingErrors.length} processing warnings` 
+      ? `Test completed with ${processingErrors.length} processing warnings` 
       : null;
     
     await supabaseAdmin
@@ -401,10 +504,10 @@ serve(async (req) => {
       })
       .eq('id', job.id);
 
-    console.log(`${logPrefix(job.id)} 🎉 JOB COMPLETED SUCCESSFULLY: ${successfulPresentations}/${totalRows} presentations`);
+    console.log(`${logPrefix(job.id)} 🎉 JOB COMPLETED SUCCESSFULLY: ${successfulPresentations}/${testRows.length} presentations (TEST MODE)`);
 
     return new Response(JSON.stringify({ 
-      message: `Job ${job.id} completed: ${successfulPresentations}/${totalRows} presentations.`,
+      message: `Job ${job.id} completed (TEST): ${successfulPresentations}/${testRows.length} presentations.`,
       processingErrors: processingErrors.length > 0 ? processingErrors : undefined 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -413,6 +516,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error(`${logPrefix(job.id)} 💥 CRITICAL ERROR occurred:`, error);
+    console.error(`${logPrefix(job.id)} 💥 ERROR STACK:`, error.stack);
     await supabaseAdmin
       .from('jobs')
       .update({
