@@ -21,29 +21,22 @@ const renderTemplate = (template: string, data: Record<string, string>): string 
 
 const sanitizeFilename = (filename: string): string => {
   const withoutDiacritics = filename.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
   const withReplacements = withoutDiacritics
     .replace(/ø/g, 'o').replace(/Ø/g, 'O')
     .replace(/æ/g, 'ae').replace(/Æ/g, 'AE')
     .replace(/ß/g, 'ss')
     .replace(/ł/g, 'l').replace(/Ł/g, 'L');
-
   const invalidCharsRegex = /[<>:"/\\|?*`!^~[\]{}';=,+]|[\x00-\x1F]/g;
   const reservedNamesRegex = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
-
   let sanitized = withReplacements
     .replace(invalidCharsRegex, '')
     .replace(/\s+/g, ' ')
     .trim();
-
   sanitized = sanitized.replace(/^\.+|\.+$/g, '');
-
   if (reservedNamesRegex.test(sanitized)) {
     sanitized = `_${sanitized}`;
   }
-
   sanitized = sanitized.slice(0, 200);
-
   return sanitized;
 };
 
@@ -63,21 +56,60 @@ const createMissingImagePlaceholder = (): Uint8Array => {
   return bytes;
 };
 
-// Image storage path resolver
+// Get image dimensions from binary data
+const getImageDimensions = async (imageData: Uint8Array): Promise<[number, number]> => {
+  try {
+    // For PNG files, read dimensions from header
+    if (imageData.length > 24 && 
+        imageData[0] === 0x89 && imageData[1] === 0x50 && 
+        imageData[2] === 0x4E && imageData[3] === 0x47) {
+      const width = (imageData[16] << 24) | (imageData[17] << 16) | (imageData[18] << 8) | imageData[19];
+      const height = (imageData[20] << 24) | (imageData[21] << 16) | (imageData[22] << 8) | imageData[23];
+      return [width, height];
+    }
+    
+    // For JPEG files, scan for SOF markers
+    if (imageData.length > 2 && imageData[0] === 0xFF && imageData[1] === 0xD8) {
+      for (let i = 2; i < imageData.length - 8; i++) {
+        if (imageData[i] === 0xFF && (imageData[i + 1] === 0xC0 || imageData[i + 1] === 0xC2)) {
+          const height = (imageData[i + 5] << 8) | imageData[i + 6];
+          const width = (imageData[i + 7] << 8) | imageData[i + 8];
+          return [width, height];
+        }
+      }
+    }
+    
+    // Default size if can't determine
+    return [300, 300];
+  } catch (error) {
+    console.error('Error getting image dimensions:', error);
+    return [300, 300];
+  }
+};
+
+// Enhanced image getter with detailed logging
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
   return async (tagValue: string, tagName: string, meta: any) => {
     const jobId = 'current';
-    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for ${tagName}=${tagValue}`);
+    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED`);
+    console.log(`${logPrefix(jobId)} - tagName: "${tagName}"`);
+    console.log(`${logPrefix(jobId)} - tagValue: "${tagValue}"`);
+    console.log(`${logPrefix(jobId)} - meta:`, JSON.stringify(meta, null, 2));
     
     try {
+      // Try different path combinations
       const pathsToTry = [
         `${userId}/${templateId}/${tagValue}`,
         `${userId}/${tagValue}`,
         tagValue,
       ];
       
+      console.log(`${logPrefix(jobId)} 🔍 SEARCHING FOR IMAGE IN PATHS:`, pathsToTry);
+      
       for (const imagePath of pathsToTry) {
         try {
+          console.log(`${logPrefix(jobId)} 🔍 TRYING PATH: ${imagePath}`);
+          
           const { data, error } = await supabaseAdmin.storage
             .from('images')
             .download(imagePath);
@@ -86,8 +118,11 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
             const imageBuffer = new Uint8Array(await data.arrayBuffer());
             console.log(`${logPrefix(jobId)} ✅ IMAGE FOUND: ${imagePath} (${imageBuffer.length} bytes)`);
             return imageBuffer;
+          } else if (error) {
+            console.log(`${logPrefix(jobId)} ❌ PATH FAILED: ${imagePath} - ${error.message}`);
           }
         } catch (pathError: any) {
+          console.log(`${logPrefix(jobId)} ❌ PATH ERROR: ${imagePath} - ${pathError.message}`);
           continue;
         }
       }
@@ -95,8 +130,10 @@ const createImageGetter = (supabaseAdmin: any, userId: string, templateId: strin
       console.error(`${logPrefix(jobId)} 🚨 IMAGE NOT FOUND: ${tagValue}`);
       
       if (missingImageBehavior === 'placeholder') {
+        console.log(`${logPrefix(jobId)} 🔧 USING PLACEHOLDER IMAGE`);
         return createMissingImagePlaceholder();
       } else if (missingImageBehavior === 'skip') {
+        console.log(`${logPrefix(jobId)} ⏭️ SKIPPING MISSING IMAGE`);
         return null;
       } else if (missingImageBehavior === 'fail') {
         throw new Error(`Missing required image: ${tagValue}`);
@@ -224,20 +261,25 @@ serve(async (req) => {
         await updateProgress(supabaseAdmin, job.id, currentProgress, `Processing presentation ${index + 1} of ${totalRows}...`);
 
         try {
-          console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows} with simplified image handling`);
+          console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
+          console.log(`${logPrefix(job.id)} 📊 ROW DATA:`, JSON.stringify(row, null, 2));
           
           const zip = new PizZip(new Uint8Array(templateData));
           
-          // Create image module with size function
+          // Create image module with proper configuration
           const imageModule = new ImageModule({
             centered: false,
             getImage: imageGetter,
-            getSize: (img: Uint8Array, tagValue: string, tagName: string, meta: any) => {
-              // Return original size - no resizing for now
-              return [300, 300]; // Default size, will be original image size
+            getSize: async (img: Uint8Array, tagValue: string, tagName: string) => {
+              console.log(`${logPrefix(job.id)} 📏 GET SIZE CALLED for ${tagName}=${tagValue}`);
+              const dimensions = await getImageDimensions(img);
+              console.log(`${logPrefix(job.id)} 📏 IMAGE DIMENSIONS: ${dimensions[0]}x${dimensions[1]}`);
+              return dimensions;
             }
           });
 
+          console.log(`${logPrefix(job.id)} 🔧 CREATING DOCXTEMPLATER WITH IMAGE MODULE`);
+          
           const doc = new Docxtemplater(zip, {
               paragraphLoop: true,
               linebreaks: true,
@@ -246,8 +288,10 @@ serve(async (req) => {
               modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING with data:`, Object.keys(row));
+          console.log(`${logPrefix(job.id)} 🎨 RENDERING TEMPLATE WITH DATA`);
           doc.render(row);
+          
+          console.log(`${logPrefix(job.id)} 📦 GENERATING OUTPUT BUFFER`);
           const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
           // Generate filename
