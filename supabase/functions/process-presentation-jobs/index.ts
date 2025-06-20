@@ -71,9 +71,9 @@ const createMissingImagePlaceholder = (): Uint8Array => {
 
 // CRITICAL FIX: Image storage path resolver with CONSISTENT filename normalization using SERVICE ROLE
 const createImageGetter = (supabaseAdmin: any, userId: string, templateId: string, missingImageBehavior: string = 'placeholder') => {
-  return async (tagValue: string, tagName: string, meta: any) => {
+  return async (tagValue: string): Promise<Uint8Array | null> => {
     const jobId = 'current';
-    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for ${tagName}=${tagValue}`);
+    console.log(`${logPrefix(jobId)} 🖼️ IMAGE GETTER CALLED for tagValue="${tagValue}"`);
     
     try {
       // Apply same normalization as upload process
@@ -246,20 +246,59 @@ serve(async (req) => {
 
         try {
           console.log(`${logPrefix(job.id)} 🔄 PROCESSING PRESENTATION ${index + 1}/${totalRows}`);
-          console.log(`${logPrefix(job.id)} 📝 Row data:`, row);
+          console.log(`${logPrefix(job.id)} 📝 Original row data:`, row);
           
-          // CRITICAL FIX: Identify image variables and prepare data assembly
-          const imageVariablesInRow = imageColumns.filter(col => row[col]);
-          console.log(`${logPrefix(job.id)} 🖼️ Image variables in this row:`, imageVariablesInRow.map(col => `${col}=${row[col]}`));
+          // CRITICAL FIX: Replace image field strings with binary data
+          const processedRow = { ...row };
+          
+          for (const imgColumn of imageColumns) {
+            if (processedRow[imgColumn]) {
+              console.log(`${logPrefix(job.id)} 🖼️ Fetching image binary for ${imgColumn}=${processedRow[imgColumn]}`);
+              try {
+                const imageBuffer = await imageGetter(processedRow[imgColumn]);
+                if (imageBuffer) {
+                  processedRow[imgColumn] = imageBuffer;
+                  console.log(`${logPrefix(job.id)} ✅ Replaced ${imgColumn} with binary data (${imageBuffer.length} bytes)`);
+                } else {
+                  console.log(`${logPrefix(job.id)} ⏭️ Skipping ${imgColumn} (null returned)`);
+                  delete processedRow[imgColumn]; // Remove the field entirely if skipping
+                }
+              } catch (imageError: any) {
+                console.error(`${logPrefix(job.id)} ❌ Failed to fetch image for ${imgColumn}:`, imageError);
+                if (missingImageBehavior === 'fail') {
+                  throw imageError;
+                }
+                // For placeholder/skip, the imageGetter already handled the fallback
+              }
+            }
+          }
+          
+          console.log(`${logPrefix(job.id)} 🎨 Final processed data structure:`, {
+            ...processedRow,
+            ...Object.fromEntries(
+              Object.entries(processedRow).map(([key, value]) => [
+                key, 
+                value instanceof Uint8Array ? `[Binary data: ${value.length} bytes]` : value
+              ])
+            )
+          });
           
           const zip = new PizZip(new Uint8Array(templateData));
           
           // CRITICAL FIX: Configure image module with proper getSize function
           const imageModule = new ImageModule({
             centered: false,
-            getImage: imageGetter,
+            getImage: (tagValue: string, tagName: string, meta: any) => {
+              // At this point, tagValue should already be binary data
+              console.log(`${logPrefix(job.id)} 📐 Image module getImage called for tagName=${tagName}, tagValue type: ${typeof tagValue}`);
+              if (tagValue instanceof Uint8Array) {
+                return tagValue;
+              }
+              console.warn(`${logPrefix(job.id)} ⚠️ Expected binary data but got ${typeof tagValue} for ${tagName}`);
+              return tagValue;
+            },
             getSize: (img: Uint8Array, tagValue: string, tagName: string, meta: any) => {
-              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}=${tagValue}, image size: ${img.length} bytes`);
+              console.log(`${logPrefix(job.id)} 📐 getSize called for ${tagName}, image size: ${img.length} bytes`);
               // Return reasonable default dimensions - actual image dimensions would require image parsing
               return [300, 200]; // Width x Height in pixels
             }
@@ -273,11 +312,10 @@ serve(async (req) => {
               modules: [imageModule]
           });
 
-          console.log(`${logPrefix(job.id)} 🎨 RENDERING with complete data object including image variables`);
+          console.log(`${logPrefix(job.id)} 🎨 RENDERING with processed data object (images as binary)`);
           
-          // CRITICAL FIX: Data assembly - pass the row data directly 
-          // The imageGetter will handle fetching binary data for _img variables
-          doc.render(row);
+          // CRITICAL FIX: Pass the processed row with binary image data
+          doc.render(processedRow);
           
           const generatedBuffer = doc.getZip().generate({ type: 'uint8array' });
           
@@ -288,8 +326,10 @@ serve(async (req) => {
             const mediaFiles = files.filter(f => f.startsWith('ppt/media/'));
             console.log(`${logPrefix(job.id)} 🔍 Generated PPTX contains ${mediaFiles.length} media files:`, mediaFiles);
             
-            if (imageVariablesInRow.length > 0 && mediaFiles.length === 0) {
+            if (imageColumns.length > 0 && mediaFiles.length === 0) {
               console.warn(`${logPrefix(job.id)} ⚠️ Expected images but no media files found in generated PPTX`);
+            } else if (mediaFiles.length > 0) {
+              console.log(`${logPrefix(job.id)} 🎉 SUCCESS: Images successfully embedded in PPTX!`);
             }
           } catch (validationError) {
             console.warn(`${logPrefix(job.id)} ⚠️ Could not validate PPTX media contents:`, validationError);
@@ -298,7 +338,7 @@ serve(async (req) => {
           // Generate filename
           let outputFilename;
           if (job.filename_template) {
-            const renderedName = renderTemplate(job.filename_template, row);
+            const renderedName = renderTemplate(job.filename_template, row); // Use original row for filename
             const sanitized = sanitizeFilename(renderedName);
             outputFilename = sanitized + '.pptx';
           }
